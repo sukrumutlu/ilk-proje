@@ -184,7 +184,21 @@ h2.title { font-family: var(--f-display); font-weight: 400; font-size: clamp(28p
   width: min(var(--size), 100%);
   display: grid; grid-template-columns: 1.5em repeat(10, minmax(0, 1fr)); grid-template-rows: 1.5em;
   gap: 2px; user-select: none; -webkit-user-select: none; touch-action: manipulation;
+  position: relative; isolation: isolate; -webkit-touch-callout: none;
 }
+.board.no-scroll, .board.no-scroll * { touch-action: none; }
+.ships { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.shipimg { position: absolute; pointer-events: none; filter: drop-shadow(0 3px 3px rgba(0,0,0,.45)); transition: filter .15s; }
+.shipimg-in { position: absolute; left: 50%; top: 50%; }
+.shipimg-in svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.shipimg.sunk { filter: brightness(.5) sepia(1) hue-rotate(-38deg) saturate(3.2) drop-shadow(0 2px 2px rgba(0,0,0,.4)); }
+.shipimg.reveal { opacity: .55; filter: grayscale(.3); }
+.board.placing .shipimg { pointer-events: auto; cursor: grab; touch-action: none; }
+.board.placing .shipimg.sel { filter: drop-shadow(0 0 0 var(--brass)) drop-shadow(0 0 2px var(--brass)) drop-shadow(0 0 6px rgba(217,169,67,.8)); }
+.board.placing .shipimg.lifted { opacity: .25; }
+.drag-ghost { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 80; pointer-events: none; }
+.drag-ghost .shipimg-in { left: auto; top: auto; filter: drop-shadow(0 10px 10px rgba(0,0,0,.55)); transition: transform .12s; }
+.drag-ghost.bad .shipimg-in svg { filter: sepia(1) hue-rotate(-40deg) saturate(4) brightness(.9); }
 .board .lab { font-family: var(--f-mono); font-size: 11px; color: var(--mist); display: grid; place-items: center; }
 .cell {
   position: relative; aspect-ratio: 1; padding: 0; border: 0; border-radius: 3px; cursor: default;
@@ -194,18 +208,11 @@ h2.title { font-family: var(--f-display); font-weight: 400; font-size: clamp(28p
 }
 .board.armed .cell.unk { cursor: crosshair; }
 .board.armed .cell.unk:hover, .board.armed .cell.unk:focus-visible { background: var(--sea-hi); box-shadow: inset 0 0 0 2px var(--brass); outline: none; }
-.cell::after { content: ""; position: absolute; inset: 0; margin: auto; pointer-events: none; }
-.cell.ship { background: linear-gradient(180deg, var(--hull-hi), var(--hull)); box-shadow: inset 0 -2px 0 rgba(0,0,0,.25); }
-.cell.ship.s-h { border-radius: 2px; }
-.cell.ship.s-h.s-start { border-radius: 50% 3px 3px 50% / 50% 3px 3px 50%; }
-.cell.ship.s-h.s-end { border-radius: 3px 40% 40% 3px; }
-.cell.ship.s-v.s-start { border-radius: 50% 50% 3px 3px / 50% 50% 3px 3px; }
-.cell.ship.s-v.s-end { border-radius: 3px 3px 40% 40%; }
+.cell::after { content: ""; position: absolute; inset: 0; margin: auto; pointer-events: none; z-index: 2; }
 .cell.miss::after { width: 26%; height: 26%; border-radius: 50%; background: var(--foam); opacity: .8; }
 .cell.around::after { width: 14%; height: 14%; border-radius: 50%; background: var(--mist); opacity: .45; }
 .cell.around { background: #0f324d; }
 .cell.hit { background: #8a2a1e; }
-.cell.ship.hit { background: linear-gradient(180deg, #a3382a, #6e1f16); }
 .cell.hit::after {
   width: 58%; height: 58%;
   background:
@@ -213,21 +220,19 @@ h2.title { font-family: var(--f-display); font-weight: 400; font-size: clamp(28p
     linear-gradient(-45deg, transparent 42%, var(--foam) 42% 58%, transparent 58%);
 }
 .cell.hit:not(.sunk)::before {
-  content: ""; position: absolute; inset: 18%; border-radius: 50%;
+  content: ""; position: absolute; inset: 18%; border-radius: 50%; z-index: 2;
   background: radial-gradient(circle, rgba(255,170,60,.85), rgba(239,74,53,0) 70%);
   animation: burn 1.6s ease-in-out infinite;
 }
 @keyframes burn { 50% { opacity: .45; transform: scale(.85); } }
 .cell.sunk { background: var(--ember) !important; }
 .cell.sunk::after { width: 50%; height: 50%; opacity: .7; }
-.cell.reveal { box-shadow: inset 0 0 0 2px var(--hull-hi); background: rgba(111,132,148,.35); }
 .cell.last { box-shadow: inset 0 0 0 2px var(--brass); }
 .cell.pv-ok { background: rgba(217,169,67,.55) !important; }
 .cell.pv-bad { background: rgba(239,74,53,.5) !important; }
-.cell.picked { opacity: .45; }
 
 /* fx */
-.fx { position: absolute; inset: 0; pointer-events: none; border-radius: 50%; }
+.fx { position: absolute; inset: 0; pointer-events: none; border-radius: 50%; z-index: 3; }
 .fx-miss { border: 2px solid var(--foam); animation: ripple .7s ease-out forwards; }
 @keyframes ripple { from { transform: scale(.2); opacity: 1; } to { transform: scale(2.4); opacity: 0; } }
 .fx-hit { background: radial-gradient(circle, #fff3c4 0, #ffb347 30%, rgba(239,74,53,.8) 55%, rgba(239,74,53,0) 72%); animation: boom .6s ease-out forwards; }
@@ -236,20 +241,36 @@ h2.title { font-family: var(--f-display); font-weight: 400; font-size: clamp(28p
 @keyframes shake { 20% { transform: translate(-4px, 2px); } 40% { transform: translate(4px, -2px); } 60% { transform: translate(-3px, 1px); } 80% { transform: translate(2px, -1px); } }
 
 /* ---------- placement ---------- */
-.place-layout { display: grid; grid-template-columns: minmax(0, auto) minmax(260px, 340px); gap: 28px; margin-top: 22px; align-items: start; justify-content: start; }
-.place-layout .board { --size: 520px; }
-.dock { display: grid; gap: 14px; }
+.place-layout { display: grid; grid-template-columns: minmax(0, 540px) minmax(260px, 360px); gap: 28px; margin-top: 18px; align-items: start; }
+.place-main { display: grid; gap: 12px; min-width: 0; }
+.place-main .board { --size: 540px; }
+.place-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; max-width: 540px; }
+.tool-rotate { padding: 10px 16px; border-color: var(--brass-dim); background: var(--deep-2); }
+.tool-rotate svg { width: 20px; height: 20px; color: var(--brass); }
+.dir-ind { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--abyss); border: 1px solid var(--brass-dim); color: var(--brass); font-size: 15px; line-height: 1; }
+.place-tools .spacer { flex: 1; }
+.hint { margin: 0; font-size: 13px; color: var(--mist); max-width: 540px; display: flex; gap: 14px; flex-wrap: wrap; }
+.hint span { display: inline-flex; gap: 6px; align-items: center; }
+.hint b { color: var(--foam); font-weight: 600; }
+.dock { display: grid; gap: 14px; background: var(--deep); border: 1px solid var(--grid); border-radius: 14px; padding: 16px; }
+.dock-head { display: flex; justify-content: space-between; align-items: baseline; }
+.dock-head .count { font-family: var(--f-mono); font-size: 13px; color: var(--brass); }
 .ship-list { display: grid; gap: 8px; }
-.ship-btn {
-  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; text-align: left;
-  background: var(--deep); border: 1px solid var(--grid); border-radius: 10px; padding: 10px 12px; cursor: pointer;
+.ship-card {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px 10px;
+  background: var(--abyss); border: 1px solid var(--grid); border-radius: 12px; padding: 10px 12px;
+  cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; transition: border-color .15s, background .15s, opacity .15s;
 }
-.ship-btn b { font-size: 14px; font-weight: 600; }
-.ship-btn small { display: block; color: var(--mist); font-size: 12px; font-family: var(--f-mono); }
-.ship-btn[aria-pressed="true"] { border-color: var(--brass); background: var(--deep-2); }
-.ship-btn.placed { opacity: .6; }
-.ship-btn.placed .pips i { background: var(--ok); }
-.dock .row .btn { flex: 1 1 auto; }
+.ship-card:hover { border-color: var(--mist); }
+.ship-card.sel { border-color: var(--brass); background: var(--deep-2); box-shadow: 0 0 0 1px var(--brass) inset; }
+.ship-card .pic { grid-column: 1 / -1; height: 30px; position: relative; }
+.ship-card .pic svg { height: 100%; width: auto; display: block; filter: drop-shadow(0 2px 2px rgba(0,0,0,.4)); }
+.ship-card .meta b { font-size: 14px; font-weight: 600; }
+.ship-card .meta small { color: var(--mist); font-size: 12px; font-family: var(--f-mono); margin-left: 6px; }
+.ship-card .state { font-size: 12px; color: var(--mist); font-family: var(--f-mono); }
+.ship-card.placed { opacity: .5; }
+.ship-card.placed .state { color: var(--ok); }
+.ship-card[aria-disabled="true"] { cursor: default; }
 .opp-chip { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--mist); background: var(--deep); border: 1px solid var(--grid); border-radius: 999px; padding: 5px 12px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--mist); }
 .dot.on { background: var(--ok); box-shadow: 0 0 0 3px rgba(82,194,143,.2); }
@@ -313,7 +334,20 @@ h2.title { font-family: var(--f-display); font-weight: 400; font-size: clamp(28p
   .menu { grid-template-columns: 1fr; gap: 10px; min-height: 0; }
   .radar { max-width: 300px; order: -1; }
   .battle { grid-template-columns: 1fr; }
-  .place-layout { grid-template-columns: 1fr; }
+  .place-layout { grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 12px; }
+  .place-main, .dock { display: contents; }
+  .place-tools { order: 1; }
+  .dock-head { order: 2; }
+  .ship-list { order: 3; display: flex; flex-wrap: wrap; gap: 6px; }
+  #place-board { order: 4; margin-top: 4px; }
+  .hint { order: 5; }
+  #btn-ready { order: 6; }
+  .ship-card { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 6px 9px 7px; border-radius: 10px; }
+  .ship-card .pic { height: 20px; order: -1; }
+  .ship-card .state { display: none; }
+  .ship-card .meta b { font-size: 12px; }
+  .ship-card .meta small { font-size: 11px; margin-left: 3px; }
+  .ship-card.placed .meta b::after { content: " ✓"; color: var(--ok); }
   .side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
@@ -455,19 +489,27 @@ h2.title { font-family: var(--f-display); font-weight: 400; font-size: clamp(28p
       </div>
     </div>
     <div class="place-layout">
-      <div id="place-board"></div>
-      <div class="dock">
-        <div>
-          <div class="mini-h">Gemiler</div>
-          <div class="ship-list" id="ship-list"></div>
-        </div>
-        <div class="row">
-          <button class="btn small" type="button" id="btn-rotate">Döndür <span class="kbd">R</span></button>
+      <div class="place-main">
+        <div class="place-tools">
+          <button class="btn tool-rotate" type="button" id="btn-rotate" title="Seçili gemiyi saat yönünde 90° çevir (R)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>
+            Döndür <span class="dir-ind" id="dir-ind" aria-label="Yön">→</span>
+          </button>
+          <span class="spacer"></span>
           <button class="btn small" type="button" id="btn-random">Rastgele</button>
-          <button class="btn small" type="button" id="btn-clear">Temizle</button>
+          <button class="btn small ghost" type="button" id="btn-clear">Temizle</button>
         </div>
+        <div id="place-board"></div>
+        <p class="hint">
+          <span><b>Sürükle</b> gemiyi haritaya taşı</span>
+          <span><b>Dokun</b> seç, tekrar dokun: döndür</span>
+          <span><b>Dışarı sürükle</b> geri al</span>
+        </p>
+      </div>
+      <div class="dock">
+        <div class="dock-head"><div class="mini-h" style="margin:0">Filon</div><span class="count" id="place-count">0/5 yerleşti</span></div>
+        <div class="ship-list" id="ship-list"></div>
         <button class="btn primary" type="button" id="btn-ready" disabled>Hazırım, savaşa başla</button>
-        <p class="note" style="margin:0">Bir gemi seç, haritada yerini tıkla. Yerleşmiş gemiye tıklarsan geri alırsın. Gemiler birbirine, çaprazda bile, değemez.</p>
       </div>
     </div>
   </section>
@@ -545,6 +587,16 @@ h2.title { font-family: var(--f-display); font-weight: 400; font-size: clamp(28p
 
 <div class="overlay" id="overlay" hidden></div>
 <div class="toast" id="toast" role="status" hidden></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="g-hull" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfdae0"/><stop offset=".5" stop-color="#94a6b1"/><stop offset="1" stop-color="#55666f"/></linearGradient>
+    <linearGradient id="g-deck" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7d8d96"/><stop offset="1" stop-color="#56656d"/></linearGradient>
+    <linearGradient id="g-wood" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b79a6a"/><stop offset="1" stop-color="#8a7048"/></linearGradient>
+    <linearGradient id="g-sub" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5f707a"/><stop offset=".45" stop-color="#3a4952"/><stop offset="1" stop-color="#1f2a30"/></linearGradient>
+    <radialGradient id="g-turret" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#dde6eb"/><stop offset="1" stop-color="#6c7d87"/></radialGradient>
+    <linearGradient id="g-super" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e2e9ec"/><stop offset="1" stop-color="#9aabb5"/></linearGradient>
+  </defs>
+</svg>
 
 <script>
 (() => {
@@ -583,14 +635,20 @@ const store = {
 };
 
 /* ============================== geometry ============================== */
+const DIRS = { e: [0, 1], s: [1, 0], w: [0, -1], n: [-1, 0] };
+const DIR_ORDER = ['e', 's', 'w', 'n'];
+const DIR_ANGLE = { e: 0, s: 90, w: 180, n: 270 };
+const DIR_ARROW = { e: '→', s: '↓', w: '←', n: '↑' };
+const normDir = d => d === 'h' ? 'e' : d === 'v' ? 's' : (DIRS[d] ? d : 'e');
 function shipCells(s) {
-  const out = [];
-  for (let k = 0; k < s.len; k++) out.push(ix(s.r + (s.dir === 'v' ? k : 0), s.c + (s.dir === 'h' ? k : 0)));
+  const [dr, dc] = DIRS[normDir(s.dir)], out = [];
+  for (let k = 0; k < s.len; k++) out.push(ix(s.r + dr * k, s.c + dc * k));
   return out;
 }
 function inBounds(s) {
-  if (s.r < 0 || s.c < 0) return false;
-  return s.dir === 'h' ? (s.r < N && s.c + s.len <= N) : (s.c < N && s.r + s.len <= N);
+  const [dr, dc] = DIRS[normDir(s.dir)];
+  const r2 = s.r + dr * (s.len - 1), c2 = s.c + dc * (s.len - 1);
+  return [s.r, s.c, r2, c2].every(v => v >= 0 && v < N);
 }
 function neighbors8(i) {
   const [r, c] = rc(i), out = [];
@@ -625,7 +683,7 @@ function randomFleet() {
     for (const def of SHIPS) {
       let placed = false;
       for (let t = 0; t < 400; t++) {
-        const s = { id: def.id, len: def.len, dir: Math.random() < .5 ? 'h' : 'v', r: rand(N), c: rand(N) };
+        const s = { id: def.id, len: def.len, dir: pick(DIR_ORDER), r: rand(N), c: rand(N) };
         if (canPlace(fleet, s)) { fleet.push(s); placed = true; break; }
       }
       if (!placed) { ok = false; break; }
@@ -899,6 +957,69 @@ function fleetStatusHTML(sunkIds = []) {
 $('#menu-fleet').innerHTML = `<div class="mini-h" style="margin:0">Filo · 5 gemi · 17 kare</div>` + fleetStatusHTML();
 $('#help-fleet').innerHTML = fleetStatusHTML();
 
+/* ============================== ship art ============================== */
+// Top-down ships drawn bow-right in a (len*100) x 100 box.
+const STROKE = 'stroke="#22303a" stroke-width="3" stroke-linejoin="round"';
+function hullPath(W, y0, y1) {
+  return `M6,50 C6,${y0 + 6} 18,${y0} 44,${y0} L${W - 130},${y0} C${W - 52},${y0} ${W - 16},${y0 + 16} ${W - 3},50 C${W - 16},${y1 - 16} ${W - 52},${y1} ${W - 130},${y1} L44,${y1} C18,${y1} 6,${y1 - 6} 6,50 Z`;
+}
+function turret(x, dir, r = 13) {
+  const bx = dir > 0 ? x : x - r - 24;
+  return `<rect x="${bx}" y="${50 - 6}" width="${r + 24}" height="4.5" rx="2" fill="#3b4952"/>` +
+    `<rect x="${bx}" y="${50 + 1.5}" width="${r + 24}" height="4.5" rx="2" fill="#3b4952"/>` +
+    `<circle cx="${x}" cy="50" r="${r}" fill="url(#g-turret)" ${STROKE}/>` +
+    `<circle cx="${x - dir * 4}" cy="50" r="3" fill="#4b5a63"/>`;
+}
+function plane(x, y, sc = 1) {
+  return `<path transform="translate(${x} ${y}) scale(${sc})" d="M14,0 L4,-3 L-2,-15 L-7,-15 L-4,-3 L-12,-2 L-16,-8 L-19,-8 L-17,0 L-19,8 L-16,8 L-12,2 L-4,3 L-7,15 L-2,15 L4,3 Z" fill="#d6dfe4" stroke="#33424b" stroke-width="1.2"/>`;
+}
+function shipSVG(id, len) {
+  const W = len * 100;
+  let body = '';
+  if (id === 'carrier') {
+    body = `<path d="M10,12 L${W - 170},9 C${W - 90},10 ${W - 20},26 ${W - 6},44 L${W - 6},58 C${W - 20},76 ${W - 90},90 ${W - 170},91 L10,88 C4,70 4,30 10,12 Z" fill="url(#g-deck)" ${STROKE}/>` +
+      `<path d="M24,22 L${W - 180},20 L${W - 110},28" fill="none" stroke="#8b9aa3" stroke-width="2"/>` +
+      `<line x1="30" y1="58" x2="${W - 40}" y2="58" stroke="#eef3f5" stroke-width="3" stroke-dasharray="16 12" opacity=".85"/>` +
+      `<line x1="40" y1="80" x2="${W * 0.5}" y2="30" stroke="#d9a943" stroke-width="2.5" opacity=".75"/>` +
+      `<rect x="${W * 0.58}" y="2" width="78" height="22" rx="4" fill="url(#g-super)" ${STROKE}/>` +
+      `<rect x="${W * 0.58 + 10}" y="8" width="12" height="8" rx="1.5" fill="#33424b"/><rect x="${W * 0.58 + 30}" y="8" width="12" height="8" rx="1.5" fill="#33424b"/><circle cx="${W * 0.58 + 60}" cy="13" r="5" fill="#33424b"/>` +
+      plane(80, 40) + plane(130, 70) + plane(190, 40) + plane(W - 120, 64, .9);
+  } else if (id === 'battleship') {
+    body = `<path d="${hullPath(W, 14, 86)}" fill="url(#g-hull)" ${STROKE}/>` +
+      `<path d="${hullPath(W, 24, 76)}" transform="translate(${W * 0.04} 0) scale(.95 1)" fill="url(#g-wood)" opacity=".55"/>` +
+      `<rect x="${W * 0.34}" y="32" width="${W * 0.22}" height="36" rx="7" fill="url(#g-super)" ${STROKE}/>` +
+      `<rect x="${W * 0.46}" y="38" width="${W * 0.08}" height="24" rx="4" fill="#c8d3d9" stroke="#22303a" stroke-width="2"/>` +
+      `<circle cx="${W * 0.39}" cy="50" r="11" fill="#2d3a42" ${STROKE}/><circle cx="${W * 0.39}" cy="50" r="5" fill="#141c21"/>` +
+      turret(W - 120, 1, 15) + turret(W - 185, 1, 14) + turret(78, -1, 15);
+  } else if (id === 'cruiser') {
+    body = `<path d="${hullPath(W, 18, 82)}" fill="url(#g-hull)" ${STROKE}/>` +
+      `<path d="${hullPath(W, 27, 73)}" transform="translate(${W * 0.05} 0) scale(.93 1)" fill="url(#g-wood)" opacity=".5"/>` +
+      `<rect x="${W * 0.36}" y="34" width="${W * 0.24}" height="32" rx="7" fill="url(#g-super)" ${STROKE}/>` +
+      `<circle cx="${W * 0.42}" cy="50" r="9" fill="#2d3a42" stroke="#22303a" stroke-width="2.5"/><circle cx="${W * 0.42}" cy="50" r="4" fill="#141c21"/>` +
+      `<line x1="${W * 0.53}" y1="30" x2="${W * 0.53}" y2="70" stroke="#33424b" stroke-width="3"/>` +
+      turret(W - 95, 1, 13) + turret(62, -1, 13);
+  } else if (id === 'submarine') {
+    body = `<path d="M14,50 C14,33 44,28 78,28 L${W - 70},28 C${W - 24},28 ${W - 6},40 ${W - 6},50 C${W - 6},60 ${W - 24},72 ${W - 70},72 L78,72 C44,72 14,67 14,50 Z" fill="url(#g-sub)" ${STROKE}/>` +
+      `<path d="M14,50 L2,36 M14,50 L2,64" stroke="#2a363d" stroke-width="6" stroke-linecap="round"/>` +
+      `<line x1="40" y1="50" x2="${W - 30}" y2="50" stroke="#71838d" stroke-width="2" opacity=".6"/>` +
+      `<rect x="${W * 0.52}" y="39" width="62" height="22" rx="11" fill="#26323a" stroke="#7a8b95" stroke-width="2.5"/>` +
+      `<rect x="${W * 0.52 + 18}" y="30" width="10" height="40" rx="3" fill="#33414a" stroke="#7a8b95" stroke-width="2"/>` +
+      `<circle cx="${W * 0.52 + 46}" cy="50" r="3.5" fill="#9fb0ba"/>`;
+  } else {
+    body = `<path d="${hullPath(W, 22, 78)}" fill="url(#g-hull)" ${STROKE}/>` +
+      `<path d="${hullPath(W, 30, 70)}" transform="translate(${W * 0.06} 0) scale(.9 1)" fill="url(#g-wood)" opacity=".5"/>` +
+      `<rect x="${W * 0.3}" y="36" width="${W * 0.24}" height="28" rx="6" fill="url(#g-super)" ${STROKE}/>` +
+      `<circle cx="${W * 0.27}" cy="50" r="8" fill="#2d3a42" stroke="#22303a" stroke-width="2.5"/>` +
+      turret(W - 62, 1, 11);
+  }
+  return `<svg viewBox="-4 0 ${W + 8} 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
+}
+function shipFromCells(id, cells) {
+  const sorted = [...cells].sort((a, b) => a - b);
+  const [r0, c0] = rc(sorted[0]), [r1] = rc(sorted[sorted.length - 1]);
+  return { id, len: sorted.length, r: r0, c: c0, dir: r0 === r1 ? 'e' : 's' };
+}
+
 /* ============================== board component ============================== */
 function createBoard(host, opts = {}) {
   host.innerHTML = '';
@@ -920,6 +1041,9 @@ function createBoard(host, opts = {}) {
       el.appendChild(b);
     }
   }
+  const layer = document.createElement('div');
+  layer.className = 'ships';
+  el.appendChild(layer);
   if (opts.interactive) {
     el.addEventListener('click', e => { const b = e.target.closest('.cell'); if (b) opts.onCell?.(+b.dataset.i); });
     el.addEventListener('pointerover', e => { const b = e.target.closest('.cell'); if (b) opts.onHover?.(+b.dataset.i); });
@@ -927,7 +1051,41 @@ function createBoard(host, opts = {}) {
     el.addEventListener('pointerleave', () => opts.onLeave?.());
   }
   host.appendChild(el);
-  return { el, cells };
+  const board = { el, cells, layer, shipState: null };
+  if (window.ResizeObserver) {
+    let last = 0;
+    new ResizeObserver(() => {
+      const w = el.offsetWidth;
+      if (w && w !== last && board.shipState) { last = w; renderShips(board, board.shipState.ships, board.shipState.opts); }
+    }).observe(el);
+  }
+  return board;
+}
+function renderShips(board, ships, opts = {}) {
+  board.shipState = { ships, opts };
+  const L = board.layer;
+  L.innerHTML = '';
+  if (!board.cells[0].offsetWidth) return;
+  for (const s of ships) {
+    if (!s || !SHIP_BY_ID[s.id]) continue;
+    const cells = shipCells(s);
+    if (!cells.every(c => c >= 0 && c < N * N)) continue;
+    const a = board.cells[Math.min(...cells)], b = board.cells[Math.max(...cells)];
+    const left = a.offsetLeft, top = a.offsetTop;
+    const w = b.offsetLeft + b.offsetWidth - left, h = b.offsetTop + b.offsetHeight - top;
+    const d = normDir(s.dir), horiz = d === 'e' || d === 'w';
+    const el = document.createElement('div');
+    const cls = ['shipimg'];
+    if (opts.sunk && opts.sunk.includes(s.id)) cls.push('sunk');
+    else if (opts.reveal) cls.push('reveal');
+    if (opts.selected === s.id) cls.push('sel');
+    if (opts.lifted === s.id) cls.push('lifted');
+    el.className = cls.join(' ');
+    el.dataset.id = s.id;
+    el.style.cssText = `left:${left}px;top:${top}px;width:${w}px;height:${h}px`;
+    el.innerHTML = `<div class="shipimg-in" style="width:${horiz ? w : h}px;height:${horiz ? h : w}px;transform:translate(-50%,-50%) rotate(${DIR_ANGLE[d]}deg)">${shipSVG(s.id, s.len)}</div>`;
+    L.appendChild(el);
+  }
 }
 function fx(board, i, type) {
   const cell = board.cells[i];
@@ -940,36 +1098,35 @@ function fx(board, i, type) {
 }
 function shake(el) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
 
-// Paint fleet + incoming knowledge on a board (own board view)
-function paintOwn(board, fleet, K) {
-  const shipMap = new Map();
-  for (const s of fleet) shipCells(s).forEach((ci, k) => shipMap.set(ci, { s, k }));
+function paintCells(board, K) {
   board.cells.forEach((cell, i) => {
     const cls = ['cell'];
-    const sm = shipMap.get(i);
-    if (sm) { cls.push('ship', 's-' + sm.s.dir); if (sm.k === 0) cls.push('s-start'); if (sm.k === sm.s.len - 1) cls.push('s-end'); }
     const v = K ? K.cell[i] : 0;
-    if (v === 1) cls.push('miss'); else if (v === 2) cls.push('hit'); else if (v === 3) cls.push('hit', 'sunk'); else if (v === 4) cls.push('around');
-    if (K && K.last === i) cls.push('last');
-    cell.className = cls.join(' ');
-  });
-}
-// Paint target knowledge (enemy waters)
-function paintTarget(board, K, reveal) {
-  const revealSet = new Set();
-  if (reveal) for (const s of reveal) shipCells(s).forEach(ci => revealSet.add(ci));
-  board.cells.forEach((cell, i) => {
-    const v = K.cell[i];
-    const cls = ['cell'];
-    if (v === 0) cls.push(revealSet.has(i) ? 'reveal' : 'unk');
+    if (v === 0) cls.push('unk');
     else if (v === 1) cls.push('miss');
     else if (v === 2) cls.push('hit');
     else if (v === 3) cls.push('hit', 'sunk');
     else if (v === 4) cls.push('around');
-    if (K.last === i) cls.push('last');
+    if (K && K.last === i) cls.push('last');
     cell.className = cls.join(' ');
     if (cell.tagName === 'BUTTON') cell.disabled = v !== 0;
   });
+}
+// Own board: my ships + where the opponent has fired
+function paintOwn(board, fleet, K) {
+  paintCells(board, K);
+  board.cells.forEach(c => c.classList.remove('unk'));
+  renderShips(board, fleet, { sunk: K ? K.sunk.map(x => x.id) : [] });
+}
+// Enemy waters: my shots, sunk ships drawn, the rest revealed when the game ends
+function paintTarget(board, K, reveal) {
+  paintCells(board, K);
+  const sunkIds = K.sunk.map(x => x.id);
+  if (reveal) {
+    renderShips(board, reveal, { sunk: sunkIds, reveal: true });
+  } else {
+    renderShips(board, K.sunk.map(x => shipFromCells(x.id, x.cells)), { sunk: sunkIds });
+  }
 }
 
 /* ============================== radar (menu) ============================== */
@@ -1044,89 +1201,238 @@ $('#lobby-back').addEventListener('click', () => { Sound.play('click'); Online.s
 $$('.diff').forEach(b => b.addEventListener('click', () => { Sound.play('select'); Bot.prepare(b.dataset.level); }));
 
 /* ============================== placement ============================== */
+// Ships can be dragged from the dock or moved on the board with mouse or finger.
+// Tap selects a ship; tapping the selected ship (or the Rotate button / R key) turns it 90° clockwise.
 const Place = {
-  board: null, fleet: [], sel: null, dir: 'h', hover: -1, onReady: null, locked: false,
+  board: null, fleet: [], sel: null, dirs: {}, hover: -1, onReady: null, locked: false, press: null, ghost: null, lastDrag: 0,
   open({ eyebrow, onReady }) {
-    this.fleet = []; this.sel = SHIPS[0].id; this.dir = 'h'; this.hover = -1; this.onReady = onReady; this.locked = false;
+    this.fleet = []; this.sel = SHIPS[0].id; this.dirs = {}; this.hover = -1; this.onReady = onReady; this.locked = false; this.press = null;
     $('#place-eyebrow').textContent = eyebrow;
     $('#btn-ready').textContent = 'Hazırım, savaşa başla';
     this.board = createBoard($('#place-board'), {
       interactive: true,
-      onCell: i => this.click(i),
-      onHover: i => { this.hover = i; this.paint(); },
-      onLeave: () => { this.hover = -1; this.paint(); },
+      onCell: i => this.tapCell(i),
+      onHover: i => { this.hover = i; this.paintPreview(); },
+      onLeave: () => { this.hover = -1; this.paintPreview(); },
+    });
+    this.board.el.classList.add('placing', 'no-scroll');
+    this.board.layer.addEventListener('pointerdown', e => {
+      const el = e.target.closest('.shipimg');
+      if (el) this.pressStart(e, el.dataset.id, 'board');
     });
     show('place');
-    this.renderList(); this.paint();
+    this.render();
   },
-  current() { return this.sel ? { ...SHIP_BY_ID[this.sel], dir: this.dir } : null; },
-  click(i) {
-    if (this.locked) return;
+  placed(id) { return this.fleet.find(f => f.id === id); },
+  dirOf(id) { const p = this.placed(id); return p ? normDir(p.dir) : (this.dirs[id] || 'e'); },
+
+  /* ---- actions ---- */
+  tapCell(i) {
+    if (this.locked || Date.now() - this.lastDrag < 250 || !this.sel) return;
     const [r, c] = rc(i);
-    const existing = this.fleet.find(s => shipCells(s).includes(i));
-    if (this.sel) {
-      const s = { id: this.sel, len: SHIP_BY_ID[this.sel].len, dir: this.dir, r, c };
-      if (canPlace(this.fleet, s)) {
-        this.fleet = this.fleet.filter(x => x.id !== s.id).concat(s);
-        Sound.play('place');
-        const next = SHIPS.find(d => !this.fleet.some(f => f.id === d.id));
-        this.sel = next ? next.id : null;
-      } else if (existing) {
-        this.pickUp(existing);
-      } else { Sound.play('error'); }
-    } else if (existing) {
-      this.pickUp(existing);
+    const s = { id: this.sel, len: SHIP_BY_ID[this.sel].len, dir: this.dirOf(this.sel), r, c };
+    if (canPlace(this.fleet, s)) { this.put(s); Sound.play('place'); }
+    else { Sound.play('error'); }
+    this.render();
+  },
+  put(s) {
+    this.fleet = this.fleet.filter(x => x.id !== s.id).concat(s);
+    this.dirs[s.id] = normDir(s.dir);
+    this.sel = s.id;
+  },
+  rotate() {
+    if (this.locked || !this.sel) return;
+    const id = this.sel, cur = this.dirOf(id);
+    const next = DIR_ORDER[(DIR_ORDER.indexOf(cur) + 1) % 4];
+    const p = this.placed(id);
+    if (!p) { this.dirs[id] = next; Sound.play('rotate'); this.render(); return; }
+    // turn around a cell of the ship, middle first, so it stays where it was
+    const cells = shipCells(p), mid = Math.floor((p.len - 1) / 2);
+    const order = [mid];
+    for (let d = 1; d < p.len; d++) { if (mid - d >= 0) order.push(mid - d); if (mid + d < p.len) order.push(mid + d); }
+    const [dr, dc] = DIRS[next];
+    for (const k of order) {
+      const [pr, pc] = rc(cells[k]);
+      const s = { ...p, dir: next, r: pr - dr * k, c: pc - dc * k };
+      if (canPlace(this.fleet, s)) { this.put(s); Sound.play('rotate'); this.render(); return; }
     }
-    this.renderList(); this.paint();
+    Sound.play('error');
+    toast('Bu yönde yer yok. Gemiyi biraz kaydırıp yeniden dene.');
+    shake(this.board.el);
   },
-  pickUp(s) {
-    this.fleet = this.fleet.filter(x => x.id !== s.id);
-    this.sel = s.id; this.dir = s.dir;
-    Sound.play('select');
+  random() { if (this.locked) return; this.fleet = randomFleet(); this.fleet.forEach(s => { this.dirs[s.id] = normDir(s.dir); }); this.sel = null; Sound.play('place'); this.render(); },
+  clear() { if (this.locked) return; this.fleet = []; this.sel = SHIPS[0].id; Sound.play('click'); this.render(); },
+
+  /* ---- drag & drop ---- */
+  pressStart(e, id, source, pic) {
+    if (this.locked || e.button > 0 || this.press) return;
+    e.preventDefault();
+    let k = 0;
+    const len = SHIP_BY_ID[id].len;
+    const placed = this.placed(id);
+    if (source === 'board' && placed) {
+      let best = Infinity;
+      shipCells(placed).forEach((ci, idx) => {
+        const r = this.board.cells[ci].getBoundingClientRect();
+        const d = Math.hypot(r.left + r.width / 2 - e.clientX, r.top + r.height / 2 - e.clientY);
+        if (d < best) { best = d; k = idx; }
+      });
+    } else if (pic) {
+      const r = pic.getBoundingClientRect();
+      k = Math.max(0, Math.min(len - 1, Math.floor((e.clientX - r.left) / r.width * len)));
+    }
+    this.press = { id, source, k, x0: e.clientX, y0: e.clientY, pid: e.pointerId, dragging: false, orig: placed ? { ...placed } : null, target: null, overBoard: false };
   },
-  rotate() { if (this.locked) return; this.dir = this.dir === 'h' ? 'v' : 'h'; Sound.play('rotate'); this.paint(); },
-  random() { if (this.locked) return; this.fleet = randomFleet(); this.sel = null; Sound.play('place'); this.renderList(); this.paint(); },
-  clear() { if (this.locked) return; this.fleet = []; this.sel = SHIPS[0].id; Sound.play('click'); this.renderList(); this.paint(); },
+  pressMove(e) {
+    const p = this.press;
+    if (!p || e.pointerId !== p.pid) return;
+    if (!p.dragging) {
+      if (Math.hypot(e.clientX - p.x0, e.clientY - p.y0) < 7) return;
+      p.dragging = true;
+      if (p.orig) this.fleet = this.fleet.filter(x => x.id !== p.id);
+      this.sel = p.id;
+      this.makeGhost();
+      Sound.play('select');
+      this.render();
+    }
+    e.preventDefault();
+    this.dragTo(e.clientX, e.clientY);
+  },
+  pressEnd(e, cancelled) {
+    const p = this.press;
+    if (!p || (e && e.pointerId !== p.pid)) return;
+    this.press = null;
+    if (!p.dragging) {
+      if (cancelled) return;
+      // a tap
+      if (this.sel === p.id && (p.source === 'board' || !this.placed(p.id))) this.rotate();
+      else { this.sel = p.id; Sound.play('select'); this.render(); }
+      return;
+    }
+    this.lastDrag = Date.now();
+    this.removeGhost();
+    if (!cancelled && p.target && canPlace(this.fleet, p.target)) {
+      this.put(p.target); Sound.play('place');
+    } else if (!cancelled && !p.overBoard && p.orig) {
+      this.sel = p.id; Sound.play('click');          // dragged off the map: back to the dock
+    } else if (p.orig) {
+      this.put(p.orig); if (!cancelled) Sound.play('error');
+    } else if (!cancelled && p.overBoard) Sound.play('error');
+    this.render();
+  },
+  makeGhost() {
+    const p = this.press;
+    const cs = this.board.cells[0].offsetWidth + 2;
+    const g = document.createElement('div');
+    g.className = 'drag-ghost';
+    g.innerHTML = `<div class="shipimg-in">${shipSVG(p.id, SHIP_BY_ID[p.id].len)}</div>`;
+    document.body.appendChild(g);
+    this.ghost = { el: g, inner: g.firstElementChild, cs };
+    this.styleGhost();
+  },
+  removeGhost() {
+    if (this.ghost) this.ghost.el.remove();
+    this.ghost = null;
+  },
+  styleGhost() {
+    const p = this.press, G = this.ghost;
+    if (!p || !G) return;
+    const len = SHIP_BY_ID[p.id].len, cs = G.cs, d = this.dirOf(p.id);
+    const ox = (p.k + .5) * cs, oy = cs / 2;
+    Object.assign(G.inner.style, {
+      width: len * cs - 2 + 'px', height: cs - 2 + 'px', left: -ox + 'px', top: -oy + 'px',
+      transformOrigin: `${ox}px ${oy}px`, transform: `rotate(${DIR_ANGLE[d]}deg) scale(1.04)`,
+    });
+  },
+  dragTo(x, y) {
+    const p = this.press, G = this.ghost;
+    if (!p || !G) return;
+    G.el.style.transform = `translate(${x}px, ${y}px)`;
+    const under = document.elementFromPoint(x, y);
+    const cell = under && under.closest('.cell');
+    p.overBoard = !!(under && under.closest('.board') === this.board.el);
+    p.target = null;
+    if (cell && this.board.el.contains(cell)) {
+      const d = this.dirOf(p.id), [dr, dc] = DIRS[d];
+      const [hr, hc] = rc(+cell.dataset.i);
+      p.target = { id: p.id, len: SHIP_BY_ID[p.id].len, dir: d, r: hr - dr * p.k, c: hc - dc * p.k };
+    }
+    G.el.classList.toggle('bad', p.overBoard && !(p.target && canPlace(this.fleet, p.target)));
+    this.paintPreview();
+  },
+  previewShip() {
+    const p = this.press;
+    if (p && p.dragging) return p.target;
+    if (!this.sel || this.placed(this.sel) || this.hover < 0 || this.locked) return null;
+    const [r, c] = rc(this.hover);
+    return { id: this.sel, len: SHIP_BY_ID[this.sel].len, dir: this.dirOf(this.sel), r, c };
+  },
+
+  /* ---- render ---- */
+  render() {
+    this.renderList();
+    if (!this.board) return;
+    const p = this.press;
+    renderShips(this.board, this.fleet, { selected: this.locked ? null : this.sel });
+    $('#dir-ind').textContent = DIR_ARROW[this.sel ? this.dirOf(this.sel) : 'e'];
+    $('#btn-rotate').disabled = this.locked || !this.sel;
+    this.paintPreview();
+    if (p && p.dragging) this.styleGhost();
+  },
+  paintPreview() {
+    if (!this.board) return;
+    this.board.cells.forEach(c => { c.className = 'cell'; });
+    const s = this.previewShip();
+    if (!s) return;
+    const ok = canPlace(this.fleet, s);
+    const [dr, dc] = DIRS[normDir(s.dir)];
+    for (let k = 0; k < s.len; k++) {
+      const rr = s.r + dr * k, cc = s.c + dc * k;
+      if (rr >= 0 && rr < N && cc >= 0 && cc < N) this.board.cells[ix(rr, cc)].classList.add(ok ? 'pv-ok' : 'pv-bad');
+    }
+  },
   renderList() {
     const list = $('#ship-list');
     list.innerHTML = SHIPS.map(d => {
-      const placed = this.fleet.some(f => f.id === d.id);
-      return `<button type="button" class="ship-btn ${placed ? 'placed' : ''}" data-id="${d.id}" aria-pressed="${this.sel === d.id}" ${this.locked ? 'disabled' : ''}>
-        <span><b>${d.name}</b><small>${d.len} kare${placed ? ' · yerleşti' : ''}</small></span>${pipsHTML(d.len)}</button>`;
+      const placed = !!this.placed(d.id);
+      return `<div class="ship-card ${placed ? 'placed' : ''} ${this.sel === d.id && !this.locked ? 'sel' : ''}" data-id="${d.id}" role="button" tabindex="0" aria-disabled="${this.locked}" aria-label="${d.name}, ${d.len} kare">
+        <span class="meta"><b>${d.name}</b><small>${d.len} kare</small></span>
+        <span class="state">${placed ? '✓ yerleşti' : 'sürükle'}</span>
+        <span class="pic">${shipSVG(d.id, d.len)}</span>
+      </div>`;
     }).join('');
-    list.querySelectorAll('.ship-btn').forEach(b => b.onclick = () => {
-      const id = b.dataset.id;
-      const placed = this.fleet.find(f => f.id === id);
-      if (placed) this.pickUp(placed); else { this.sel = id; Sound.play('select'); }
-      this.renderList(); this.paint();
+    list.querySelectorAll('.ship-card').forEach(card => {
+      const id = card.dataset.id;
+      card.addEventListener('pointerdown', e => this.pressStart(e, id, 'dock', card.querySelector('.pic svg')));
+      card.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (this.locked) return; this.sel = id; Sound.play('select'); this.render(); }
+      });
     });
+    $('#place-count').textContent = `${this.fleet.length}/${TOTAL_SHIPS} yerleşti`;
     $('#btn-ready').disabled = this.fleet.length !== TOTAL_SHIPS || this.locked;
   },
-  paint() {
-    if (!this.board) return;
-    paintOwn(this.board, this.fleet, null);
-    const cur = this.current();
-    if (cur && this.hover >= 0 && !this.locked) {
-      const [r, c] = rc(this.hover);
-      const s = { ...cur, r, c };
-      const ok = canPlace(this.fleet, s);
-      for (let k = 0; k < s.len; k++) {
-        const rr = r + (s.dir === 'v' ? k : 0), cc = c + (s.dir === 'h' ? k : 0);
-        if (rr < N && cc < N) this.board.cells[ix(rr, cc)].classList.add(ok ? 'pv-ok' : 'pv-bad');
-      }
-    }
-  },
 };
+document.addEventListener('pointermove', e => Place.pressMove(e), { passive: false });
+document.addEventListener('pointerup', e => Place.pressEnd(e, false));
+document.addEventListener('pointercancel', e => Place.pressEnd(e, true));
+document.addEventListener('touchmove', e => { if (Place.press && Place.press.dragging) e.preventDefault(); }, { passive: false });
 $('#btn-rotate').addEventListener('click', () => Place.rotate());
 $('#btn-random').addEventListener('click', () => Place.random());
 $('#btn-clear').addEventListener('click', () => Place.clear());
 $('#btn-ready').addEventListener('click', () => {
   if (Place.fleet.length !== TOTAL_SHIPS) return;
   Sound.play('ready');
-  Place.onReady?.(Place.fleet.map(s => ({ ...s })));
+  Place.onReady?.(Place.fleet.map(s => ({ ...s, dir: normDir(s.dir) })));
 });
 document.addEventListener('keydown', e => {
-  if (currentScreen === 'place' && (e.key === 'r' || e.key === 'R') && !e.target.closest('input')) { e.preventDefault(); Place.rotate(); }
+  if (currentScreen === 'place' && (e.key === 'r' || e.key === 'R') && !e.target.closest('input')) {
+    e.preventDefault();
+    if (Place.press && Place.press.dragging) {
+      const id = Place.press.id;
+      Place.dirs[id] = DIR_ORDER[(DIR_ORDER.indexOf(Place.dirOf(id)) + 1) % 4];
+      Sound.play('rotate'); Place.styleGhost(); Place.render();
+    } else Place.rotate();
+  }
   if (e.key === 'Escape' && !$('#overlay').hidden && $('#overlay .confirm')) closeOverlay();
 });
 
@@ -1137,6 +1443,7 @@ const Battle = {
     this.onShoot = onShoot; this.log = [];
     this.target = createBoard($('#target-board'), { interactive: true, onCell: i => this.onShoot?.(i) });
     this.own = createBoard($('#own-board'));
+    this.target.el.classList.add('no-scroll');
     $('#battle-opp-name').textContent = oppName;
     $('#log').innerHTML = '';
     show('battle');
@@ -1533,7 +1840,7 @@ const Online = {
       onReady: fleet => {
         this.myFleet = fleet;
         this.me.ready = true;
-        Place.locked = true; Place.renderList(); Place.paint();
+        Place.locked = true; Place.render();
         $('#btn-ready').textContent = 'Rakip bekleniyor…';
         this.publish();
         this.refresh();
