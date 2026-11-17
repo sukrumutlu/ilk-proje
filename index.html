@@ -861,16 +861,21 @@ function botPick(K, level) {
 }
 
 /* ============================== sound ============================== */
+const SILENT_WAV = 'data:audio/wav;base64,UklGRsQPAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YaAPAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 const Sound = {
   ctx: null, master: null, sfx: store.get('sfx', true), seaOn: store.get('sea', false), seaNode: null,
+  unlocked: false, keepAlive: null,
   init() {
-    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
+    if (this.ctx) {
+      if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
+      return;
+    }
     try {
       this.ctx = new AC();
       this.master = this.ctx.createGain();
-      this.master.gain.value = .7;
+      this.master.gain.value = 1;
       const comp = this.ctx.createDynamicsCompressor();
       this.master.connect(comp); comp.connect(this.ctx.destination);
       const len = this.ctx.sampleRate * 2;
@@ -879,6 +884,33 @@ const Sound = {
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
       if (this.seaOn) this.startSea();
     } catch { this.ctx = null; }
+  },
+  // Called from real user gestures. iOS only starts audio on touchend/click,
+  // and mutes Web Audio when the silent switch is on unless a media element is playing.
+  unlock() {
+    this.init();
+    if (!this.ctx) return;
+    if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
+    if (!this.unlocked) {
+      try {
+        const b = this.ctx.createBuffer(1, 1, 22050), src = this.ctx.createBufferSource();
+        src.buffer = b; src.connect(this.ctx.destination); src.start(0);
+      } catch { /* ignore */ }
+      try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* ignore */ }
+      this.unlocked = true;
+    }
+    if (this.sfx || this.seaOn) this.startKeepAlive();
+  },
+  startKeepAlive() {
+    if (!/iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent) || !('ontouchend' in document)) return;
+    try {
+      if (!this.keepAlive) {
+        const a = document.createElement('audio');
+        a.src = SILENT_WAV; a.loop = true; a.setAttribute('playsinline', ''); a.preload = 'auto';
+        this.keepAlive = a;
+      }
+      if (this.keepAlive.paused && !document.hidden) this.keepAlive.play().catch(() => {});
+    } catch { /* ignore */ }
   },
   tone(freq, dur, type = 'sine', vol = .2, when = 0, slideTo) {
     if (!this.ctx || !this.sfx) return;
@@ -908,16 +940,17 @@ const Sound = {
   play(name) {
     this.init();
     if (!this.ctx || !this.sfx) return;
+    if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
     switch (name) {
-      case 'click': this.tone(700, .05, 'square', .05); break;
-      case 'select': this.tone(520, .06, 'triangle', .12); this.tone(780, .07, 'triangle', .1, .045); break;
-      case 'rotate': this.tone(420, .05, 'triangle', .1); this.tone(560, .06, 'triangle', .1, .04); break;
-      case 'place': this.tone(150, .16, 'sine', .45, 0, 70); this.noise(.09, 'lowpass', 900, 300, .15); break;
-      case 'error': this.tone(180, .14, 'square', .07); this.tone(140, .18, 'square', .07, .1); break;
-      case 'fire': this.noise(.32, 'bandpass', 3200, 500, .22, 0, 1.4); this.tone(240, .22, 'sawtooth', .04, 0, 90); break;
+      case 'click': this.tone(760, .06, 'triangle', .3); this.tone(1140, .04, 'sine', .12, .01); break;
+      case 'select': this.tone(520, .07, 'triangle', .32); this.tone(780, .08, 'triangle', .28, .05); break;
+      case 'rotate': this.tone(420, .06, 'triangle', .3); this.tone(630, .07, 'triangle', .28, .05); break;
+      case 'place': this.tone(160, .18, 'sine', .7, 0, 70); this.tone(320, .08, 'triangle', .2); this.noise(.1, 'lowpass', 1200, 300, .3); break;
+      case 'error': this.tone(200, .14, 'square', .14); this.tone(150, .2, 'square', .14, .11); break;
+      case 'fire': this.noise(.35, 'bandpass', 3200, 500, .45, 0, 1.2); this.tone(240, .22, 'sawtooth', .1, 0, 90); break;
       case 'splash':
-        this.noise(.7, 'lowpass', 2600, 250, .32);
-        for (let k = 0; k < 4; k++) this.tone(500 + Math.random() * 700, .06, 'sine', .05, .12 + k * .07 + Math.random() * .04, 1400);
+        this.noise(.7, 'lowpass', 2600, 250, .55);
+        for (let k = 0; k < 4; k++) this.tone(500 + Math.random() * 700, .07, 'sine', .14, .12 + k * .07 + Math.random() * .04, 1400);
         break;
       case 'hit':
         this.noise(1, 'lowpass', 3500, 120, .55); this.tone(95, .7, 'sine', .6, 0, 32);
@@ -925,27 +958,27 @@ const Sound = {
       case 'sunk':
         this.noise(1.1, 'lowpass', 4000, 100, .6); this.tone(80, 1.3, 'sine', .7, 0, 24);
         this.noise(1.5, 'lowpass', 1300, 70, .45, .18);
-        this.tone(880, .16, 'square', .05, .55); this.tone(660, .2, 'square', .05, .75);
+        this.tone(880, .16, 'square', .1, .55); this.tone(660, .2, 'square', .1, .75);
         break;
       case 'win':
-        [523, 659, 784, 1047].forEach((f, k) => this.tone(f, .28, 'triangle', .18, k * .13));
-        [523, 659, 784].forEach(f => this.tone(f, .9, 'triangle', .1, .55));
+        [523, 659, 784, 1047].forEach((f, k) => this.tone(f, .28, 'triangle', .35, k * .13));
+        [523, 659, 784].forEach(f => this.tone(f, .9, 'triangle', .18, .55));
         break;
       case 'lose':
-        [392, 349, 311, 233].forEach((f, k) => this.tone(f, .42, 'sawtooth', .06, k * .22));
+        [392, 349, 311, 233].forEach((f, k) => this.tone(f, .45, 'sawtooth', .14, k * .22));
         break;
-      case 'ready': this.tone(392, .18, 'triangle', .14); this.tone(523, .3, 'triangle', .14, .16); break;
-      case 'ping': this.tone(1250, .25, 'sine', .07); this.tone(1250, .4, 'sine', .03, .25); break;
-      case 'join': this.tone(660, .1, 'triangle', .12); this.tone(880, .12, 'triangle', .12, .1); this.tone(1320, .18, 'triangle', .1, .2); break;
+      case 'ready': this.tone(392, .2, 'triangle', .35); this.tone(523, .32, 'triangle', .35, .16); break;
+      case 'ping': this.tone(1250, .25, 'sine', .25); this.tone(1250, .4, 'sine', .1, .25); break;
+      case 'join': this.tone(660, .1, 'triangle', .3); this.tone(880, .12, 'triangle', .3, .1); this.tone(1320, .18, 'triangle', .25, .2); break;
     }
   },
   startSea() {
     if (!this.ctx || this.seaNode) return;
     const src = this.ctx.createBufferSource(); src.buffer = this.noiseBuf; src.loop = true;
     const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 420;
-    const g = this.ctx.createGain(); g.gain.value = .05;
+    const g = this.ctx.createGain(); g.gain.value = .09;
     const lfo = this.ctx.createOscillator(); lfo.frequency.value = .09;
-    const lg = this.ctx.createGain(); lg.gain.value = .035;
+    const lg = this.ctx.createGain(); lg.gain.value = .06;
     lfo.connect(lg); lg.connect(g.gain);
     src.connect(f); f.connect(g); g.connect(this.master);
     src.start(); lfo.start();
@@ -965,7 +998,13 @@ $('#btn-sea').addEventListener('click', () => {
   if (Sound.seaOn) Sound.startSea(); else Sound.stopSea();
   syncSoundButtons();
 });
-document.addEventListener('pointerdown', () => Sound.init(), { once: true });
+// Unlock audio on every kind of real gesture until it is running (iOS needs touchend/click).
+['pointerdown', 'touchend', 'click', 'keydown'].forEach(ev =>
+  document.addEventListener(ev, () => Sound.unlock(), { capture: true, passive: true }));
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { try { Sound.keepAlive && Sound.keepAlive.pause(); } catch { /* ignore */ } }
+  else if (Sound.unlocked && (Sound.sfx || Sound.seaOn)) Sound.startKeepAlive();
+});
 syncSoundButtons();
 
 /* ============================== UI helpers ============================== */
