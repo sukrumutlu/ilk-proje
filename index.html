@@ -878,16 +878,32 @@ const Sound = {
       this.master.gain.value = 1;
       const comp = this.ctx.createDynamicsCompressor();
       this.master.connect(comp); comp.connect(this.ctx.destination);
-      const len = this.ctx.sampleRate * 2;
-      this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const sr = this.ctx.sampleRate, len = sr * 2;
+      this.noiseBuf = this.ctx.createBuffer(1, len, sr);
       const d = this.noiseBuf.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      // brown noise: deep rumble for booms and explosions
+      this.brownBuf = this.ctx.createBuffer(1, len, sr);
+      const bd = this.brownBuf.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < len; i++) { last = (last + .02 * (Math.random() * 2 - 1)) / 1.02; bd[i] = last * 3.5; }
+      // open-sea reverb: a long, soft, decaying tail
+      const irLen = Math.floor(sr * 2.4), ir = this.ctx.createBuffer(2, irLen, sr);
+      for (let ch = 0; ch < 2; ch++) {
+        const x = ir.getChannelData(ch);
+        for (let i = 0; i < irLen; i++) x[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / irLen, 3.2) * (i < sr * .02 ? i / (sr * .02) : 1);
+      }
+      this.verb = this.ctx.createConvolver(); this.verb.buffer = ir;
+      const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2200;
+      this.verbIn = this.ctx.createGain(); this.verbIn.gain.value = .55;
+      this.verbIn.connect(this.verb); this.verb.connect(lp); lp.connect(this.master);
       if (this.seaOn) this.startSea();
     } catch { this.ctx = null; }
   },
   // Called from real user gestures. iOS only starts audio on touchend/click,
   // and mutes Web Audio when the silent switch is on unless a media element is playing.
   unlock() {
+    if (document.hidden) return;
     this.init();
     if (!this.ctx) return;
     if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
@@ -922,12 +938,13 @@ const Sound = {
     g.gain.exponentialRampToValueAtTime(vol, t + .01);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(g); g.connect(this.master);
+    if (this.wet && this.verbIn) { const w = this.ctx.createGain(); w.gain.value = this.wet; g.connect(w); w.connect(this.verbIn); }
     o.start(t); o.stop(t + dur + .05);
   },
   noise(dur, ftype, f0, f1, vol = .3, when = 0, q = 1) {
     if (!this.ctx || !this.sfx) return;
     const t = this.ctx.currentTime + when;
-    const src = this.ctx.createBufferSource(); src.buffer = this.noiseBuf;
+    const src = this.ctx.createBufferSource(); src.buffer = this.brown ? this.brownBuf : this.noiseBuf;
     const f = this.ctx.createBiquadFilter(); f.type = ftype; f.Q.value = q;
     f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(f1, 20), t + dur);
     const g = this.ctx.createGain();
@@ -935,9 +952,84 @@ const Sound = {
     g.gain.exponentialRampToValueAtTime(vol, t + .02);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     src.connect(f); f.connect(g); g.connect(this.master);
+    if (this.wet && this.verbIn) { const w = this.ctx.createGain(); w.gain.value = this.wet; g.connect(w); w.connect(this.verbIn); }
     src.start(t, Math.random()); src.stop(t + dur + .05);
   },
+  // helpers: fx(wet, brown, fn) runs fn with a reverb send and noise colour
+  with(wet, brown, fn) { const pw = this.wet, pb = this.brown; this.wet = wet; this.brown = brown; try { fn(); } finally { this.wet = pw; this.brown = pb; } },
+  // percussive noise with a fast attack and a natural (exponential) decay
+  burst(dur, ftype, f0, f1, vol, when = 0, q = .7, attack = .004) {
+    if (!this.ctx || !this.sfx) return;
+    const t = this.ctx.currentTime + when;
+    const src = this.ctx.createBufferSource(); src.buffer = this.brown ? this.brownBuf : this.noiseBuf;
+    const f = this.ctx.createBiquadFilter(); f.type = ftype; f.Q.value = q;
+    f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(f1, 20), t + dur);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + attack);
+    g.gain.setTargetAtTime(0.0001, t + attack, dur / 4.5);
+    src.connect(f); f.connect(g); g.connect(this.master);
+    if (this.wet && this.verbIn) { const w = this.ctx.createGain(); w.gain.value = this.wet; g.connect(w); w.connect(this.verbIn); }
+    src.start(t, Math.random()); src.stop(t + dur + .2);
+  },
+  // short metallic ring: a few inharmonic partials decaying fast
+  ring(base, dur, vol, when = 0) {
+    [1, 2.76, 5.4, 8.93].forEach((m, k) => this.tone(base * m, dur / (1 + k * .6), 'sine', vol / (1 + k * .8), when));
+  },
+  cannon(vol = 1, when = 0) {
+    this.with(.6, true, () => {
+      this.burst(.9, 'lowpass', 900, 90, .9 * vol, when, .6, .003);
+      this.tone(62, .35, 'sine', .8 * vol, when, 32);
+    });
+    this.with(.35, false, () => this.burst(.12, 'lowpass', 5000, 1200, .25 * vol, when, .5, .002));
+  },
+  splash(vol = 1) {
+    this.with(.25, false, () => {
+      this.tone(110, .22, 'sine', .35 * vol, 0, 45);                              // the shell plunging in
+      this.burst(.95, 'bandpass', 1700, 520, .55 * vol, .01, .55, .012);          // water thrown up
+      this.burst(1.3, 'highpass', 3500, 2500, .12 * vol, .12, .5, .08);           // spray hiss
+      for (let k = 0; k < 16; k++) {                                              // droplets falling back
+        const w = .25 + Math.random() * 1.0;
+        this.burst(.035 + Math.random() * .04, 'bandpass', 1800 + Math.random() * 3500, 1500, (.04 + Math.random() * .07) * vol, w, 4, .002);
+      }
+    });
+  },
+  impact(vol = 1) {
+    this.with(.25, false, () => {
+      this.burst(.08, 'bandpass', 2600, 1800, .5 * vol, 0, 1.2, .001);           // shell striking steel
+      this.ring(300 + Math.random() * 60, .45, .09 * vol, 0);
+    });
+    this.with(.55, true, () => {
+      this.burst(1.1, 'lowpass', 2400, 140, .85 * vol, .02, .6, .006);           // explosion
+      this.tone(70, .45, 'sine', .55 * vol, .02, 34);
+    });
+    this.with(.2, false, () => {
+      for (let k = 0; k < 7; k++) this.burst(.03, 'highpass', 2500, 2000, (.05 + Math.random() * .06) * vol, .15 + Math.random() * .7, .7, .001); // debris crackle
+    });
+  },
+  sinking() {
+    this.impact(1.1);
+    this.with(.6, true, () => this.burst(2.6, 'lowpass', 520, 60, .6, .35, .7, .25));  // long rumble
+    // steel groaning as the hull gives way
+    if (this.ctx && this.sfx) {
+      const t = this.ctx.currentTime + .6;
+      const o = this.ctx.createOscillator(), f = this.ctx.createBiquadFilter(), g = this.ctx.createGain();
+      const lfo = this.ctx.createOscillator(), lg = this.ctx.createGain();
+      o.type = 'sawtooth'; o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(48, t + 1.6);
+      lfo.frequency.value = 7; lg.gain.value = 4; lfo.connect(lg); lg.connect(o.frequency);
+      f.type = 'lowpass'; f.frequency.value = 420; f.Q.value = 4;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(.09, t + .3); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.7);
+      o.connect(f); f.connect(g); g.connect(this.master);
+      if (this.verbIn) { const w = this.ctx.createGain(); w.gain.value = .5; g.connect(w); w.connect(this.verbIn); }
+      o.start(t); lfo.start(t); o.stop(t + 1.8); lfo.stop(t + 1.8);
+    }
+    this.with(.3, false, () => {
+      this.burst(1.8, 'bandpass', 380, 900, .22, .9, .8, .3);                        // water rushing in
+      for (let k = 0; k < 10; k++) this.tone(260 + Math.random() * 420, .09, 'sine', .05, 1.1 + Math.random() * 1.4, 520 + Math.random() * 400); // bubbles
+    });
+  },
   play(name) {
+    if (document.hidden) return;
     this.init();
     if (!this.ctx || !this.sfx) return;
     if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
@@ -947,25 +1039,18 @@ const Sound = {
       case 'rotate': this.tone(420, .06, 'triangle', .3); this.tone(630, .07, 'triangle', .28, .05); break;
       case 'place': this.tone(160, .18, 'sine', .7, 0, 70); this.tone(320, .08, 'triangle', .2); this.noise(.1, 'lowpass', 1200, 300, .3); break;
       case 'error': this.tone(200, .14, 'square', .14); this.tone(150, .2, 'square', .14, .11); break;
-      case 'fire': this.noise(.35, 'bandpass', 3200, 500, .45, 0, 1.2); this.tone(240, .22, 'sawtooth', .1, 0, 90); break;
-      case 'splash':
-        this.noise(.7, 'lowpass', 2600, 250, .55);
-        for (let k = 0; k < 4; k++) this.tone(500 + Math.random() * 700, .07, 'sine', .14, .12 + k * .07 + Math.random() * .04, 1400);
-        break;
-      case 'hit':
-        this.noise(1, 'lowpass', 3500, 120, .55); this.tone(95, .7, 'sine', .6, 0, 32);
-        break;
-      case 'sunk':
-        this.noise(1.1, 'lowpass', 4000, 100, .6); this.tone(80, 1.3, 'sine', .7, 0, 24);
-        this.noise(1.5, 'lowpass', 1300, 70, .45, .18);
-        this.tone(880, .16, 'square', .1, .55); this.tone(660, .2, 'square', .1, .75);
-        break;
+      case 'fire': this.cannon(.9); break;
+      case 'splash': this.splash(); break;
+      case 'hit': this.impact(); break;
+      case 'sunk': this.sinking(); break;
       case 'win':
-        [523, 659, 784, 1047].forEach((f, k) => this.tone(f, .28, 'triangle', .35, k * .13));
-        [523, 659, 784].forEach(f => this.tone(f, .9, 'triangle', .18, .55));
+        this.with(.4, false, () => {
+          [392, 523, 659, 784].forEach((f, k) => this.tone(f, .32, 'triangle', .26, k * .14));
+          [523, 659, 784].forEach(f => this.tone(f, 1.3, 'triangle', .13, .6));
+        });
         break;
       case 'lose':
-        [392, 349, 311, 233].forEach((f, k) => this.tone(f, .45, 'sawtooth', .14, k * .22));
+        this.with(.45, false, () => [392, 349, 311, 262].forEach((f, k) => this.tone(f, .6, 'triangle', .22, k * .3)));
         break;
       case 'ready': this.tone(392, .2, 'triangle', .35); this.tone(523, .32, 'triangle', .35, .16); break;
       case 'ping': this.tone(1250, .25, 'sine', .25); this.tone(1250, .4, 'sine', .1, .25); break;
@@ -1001,10 +1086,20 @@ $('#btn-sea').addEventListener('click', () => {
 // Unlock audio on every kind of real gesture until it is running (iOS needs touchend/click).
 ['pointerdown', 'touchend', 'click', 'keydown'].forEach(ev =>
   document.addEventListener(ev, () => Sound.unlock(), { capture: true, passive: true }));
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { try { Sound.keepAlive && Sound.keepAlive.pause(); } catch { /* ignore */ } }
-  else if (Sound.unlocked && (Sound.sfx || Sound.seaOn)) Sound.startKeepAlive();
-});
+// Go fully quiet while the page is in the background (another tab, app switched, screen locked).
+function audioBackground(hidden) {
+  try { Sound.keepAlive && (hidden ? Sound.keepAlive.pause() : null); } catch { /* ignore */ }
+  if (!Sound.ctx) return;
+  if (hidden) { Sound.ctx.suspend().catch(() => {}); }
+  else {
+    Sound.ctx.resume().catch(() => {});
+    if (Sound.unlocked && (Sound.sfx || Sound.seaOn)) Sound.startKeepAlive();
+  }
+}
+document.addEventListener('visibilitychange', () => audioBackground(document.hidden));
+window.addEventListener('pagehide', () => audioBackground(true));
+window.addEventListener('pageshow', () => { if (!document.hidden) audioBackground(false); });
+window.addEventListener('blur', () => { if (document.hidden) audioBackground(true); });
 syncSoundButtons();
 
 /* ============================== UI helpers ============================== */
