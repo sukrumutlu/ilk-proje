@@ -1309,6 +1309,58 @@ const Sound = {
       for (let k = 0; k < 7; k++) this.burst(.03, 'highpass', 2500, 2000, (.05 + Math.random() * .06) * vol, .15 + Math.random() * .7, .7, .001); // debris crackle
     });
   },
+  // a falling bomb: a whistle sliding down, a little air noise, then silence before the blast
+  whistle(vol = 1) {
+    if (!this.ctx || !this.sfx) return;
+    const t = this.ctx.currentTime, dur = .72;
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    const lfo = this.ctx.createOscillator(), lg = this.ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(1650, t);
+    o.frequency.exponentialRampToValueAtTime(420, t + dur);
+    lfo.frequency.value = 11; lg.gain.value = 14; lfo.connect(lg); lg.connect(o.frequency);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(.05 * vol, t + .12);
+    g.gain.exponentialRampToValueAtTime(.11 * vol, t + dur * .85);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(this.master);
+    if (this.verbIn) { const w = this.ctx.createGain(); w.gain.value = .3; g.connect(w); w.connect(this.verbIn); }
+    o.start(t); lfo.start(t); o.stop(t + dur + .05); lfo.stop(t + dur + .05);
+    this.with(.2, false, () => this.noise(dur, 'bandpass', 2400, 700, .05 * vol, 0, 2.5));
+    this.whistleEnd = performance.now() + dur * 1000;
+  },
+  // the bomb going off on the water: a deep, wide boom under the hit / splash sounds
+  blast(vol = 1) {
+    this.with(.7, true, () => {
+      this.burst(1.5, 'lowpass', 700, 55, .9 * vol, 0, .5, .006);
+      this.tone(48, .7, 'sine', .7 * vol, 0, 26);
+    });
+    this.with(.3, false, () => this.burst(.18, 'lowpass', 3800, 900, .22 * vol, .01, .6, .003));
+  },
+  // active sonar: a clean ping that rings out under water
+  ping(freq, vol, when = 0, wet = .9, lp = 6000) {
+    if (!this.ctx || !this.sfx) return;
+    const t = this.ctx.currentTime + when;
+    const o = this.ctx.createOscillator(), o2 = this.ctx.createOscillator(), f = this.ctx.createBiquadFilter(), g = this.ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(freq, t); o.frequency.exponentialRampToValueAtTime(freq * .975, t + 1.2);
+    o2.type = 'sine'; o2.frequency.setValueAtTime(freq * 2.01, t);
+    const g2 = this.ctx.createGain(); g2.gain.value = .08;
+    f.type = 'lowpass'; f.frequency.value = lp;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + .006);
+    g.gain.setTargetAtTime(0.0001, t + .02, .28);
+    o.connect(f); o2.connect(g2); g2.connect(f); f.connect(g); g.connect(this.master);
+    if (this.verbIn) { const w = this.ctx.createGain(); w.gain.value = wet; g.connect(w); w.connect(this.verbIn); }
+    o.start(t); o2.start(t); o.stop(t + 1.6); o2.stop(t + 1.6);
+  },
+  sonarPing() {
+    this.ping(1180, .32, 0, .9);
+    this.with(.4, true, () => this.burst(1.4, 'lowpass', 260, 120, .05, 0, .7, .2));   // low hum of the water
+  },
+  sonarEcho(found) {
+    if (found) { this.ping(1170, .17, 0, .7, 3200); this.ping(1165, .06, .32, .9, 2000); }  // a clear return
+    else { this.ping(1175, .045, 0, 1, 1500); }                                            // only a faint, distant echo
+  },
   sinking() {
     this.impact(1.1);
     this.with(.6, true, () => this.burst(2.6, 'lowpass', 520, 60, .6, .35, .7, .25));  // long rumble
@@ -1364,11 +1416,11 @@ const Sound = {
         this.with(.45, false, () => [392, 349, 311, 262].forEach((f, k) => this.tone(f, .6, 'triangle', .22, k * .3)));
         break;
       case 'ready': this.tone(392, .2, 'triangle', .35); this.tone(523, .32, 'triangle', .35, .16); break;
-      case 'bomb': this.cannon(1); this.cannon(.8, .12); break;
-      case 'sonar':
-        this.with(.85, false, () => { this.tone(1350, .45, 'sine', .3); this.tone(1350, .35, 'sine', .1, .55); this.tone(1350, .3, 'sine', .04, 1.05); });
-        break;
-      case 'contact': this.with(.6, false, () => { this.tone(880, .14, 'sine', .25); this.tone(1320, .2, 'sine', .22, .12); }); break;
+      case 'bomb': this.whistle(); break;
+      case 'blast': this.blast(); break;
+      case 'sonar': this.sonarPing(); break;
+      case 'echo-yes': this.sonarEcho(true); break;
+      case 'echo-no': this.sonarEcho(false); break;
       case 'tick': this.tone(1500, .035, 'square', .08); break;
       case 'ping': this.tone(1250, .25, 'sine', .25); this.tone(1250, .4, 'sine', .1, .25); break;
       case 'join': this.tone(660, .1, 'triangle', .3); this.tone(880, .12, 'triangle', .3, .1); this.tone(1320, .18, 'triangle', .25, .2); break;
@@ -2192,8 +2244,9 @@ const Battle = {
       const found = !!(ans && ans.sonar);
       this.addLine(who, areaLabel(cells), `Sonar: ${found ? 'gemi var!' : 'boş'}`, found ? 'sonar-yes' : 'miss');
       cells.forEach(c => fx(board, c, 'sonar'));
-      Sound.play('sonar');
-      if (found) setTimeout(() => Sound.play('contact'), 700);
+      if (!(Sound.pingAt > performance.now() - 1500)) Sound.play('sonar');
+      Sound.pingAt = 0;
+      setTimeout(() => Sound.play(found ? 'echo-yes' : 'echo-no'), 650);
       return;
     }
     const res = actResults(a, ans);
@@ -2201,8 +2254,15 @@ const Battle = {
     this.addLine(who, areaLabel(cells), `Bomba: ${hits ? hits + ' isabet' : 'hepsi ıska'}`, hits ? 'hit' : 'miss');
     res.forEach(r => { if (r && r.r === 'sunk') this.addLine(who, '', `${SHIP_BY_ID[r.id]?.name} battı!`, 'sunk'); });
     const worst = res.some(r => r && r.r === 'sunk') ? 'sunk' : hits ? 'hit' : 'splash';
-    cells.forEach((c, n) => setTimeout(() => this.effect(board, c, res[n] || { r: 'miss' }, true), n * 110));
-    setTimeout(() => Sound.play(worst), 120);
+    // let the falling whistle finish first; if this bomb came from the other player, whistle it here now
+    let wait = (Sound.whistleEnd || 0) - performance.now();
+    if (wait < -1500) { Sound.play('bomb'); wait = 720; }
+    wait = Math.max(0, wait);
+    setTimeout(() => {
+      Sound.play('blast');
+      cells.forEach((c, n) => setTimeout(() => this.effect(board, c, res[n] || { r: 'miss' }, true), n * 110));
+      setTimeout(() => Sound.play(worst), 90);
+    }, wait);
   },
   addLine(who, at, text, cls) {
     this.log.unshift({ who, at, text, cls });
@@ -2317,7 +2377,8 @@ const Bot = {
     if (k === 'shot' && g.targetK.cell[a] !== 0) return;
     if (k !== 'shot' && (!RULES.powers || g.T.used.me[k === 'bomb' ? 'bomb' : 'sonar'])) return;
     g.busy = true;
-    Sound.play(k === 'bomb' ? 'bomb' : k === 'sonar' ? 'click' : 'fire');
+    Sound.play(k === 'bomb' ? 'bomb' : k === 'sonar' ? 'sonar' : 'fire');
+    if (k === 'sonar') Sound.pingAt = performance.now();
     this.render();
     setTimeout(() => {
       if (this.g !== g) return;
@@ -2329,14 +2390,15 @@ const Bot = {
         this.timer = setTimeout(() => this.botTurn(), slow ? 2100 : 1000);
       }
       this.render();
-    }, k === 'sonar' ? 120 : 230);
+    }, k === 'sonar' ? 150 : k === 'bomb' ? 760 : 230);
   },
   botTurn() {
     const g = this.g;
     if (!g || g.over) return;
     const a = botDecide(g.incomingK, this.level, g.T.used.them);
     const k = actKind(a);
-    Sound.play(k === 'bomb' ? 'bomb' : k === 'sonar' ? 'click' : 'fire');
+    Sound.play(k === 'bomb' ? 'bomb' : k === 'sonar' ? 'sonar' : 'fire');
+    if (k === 'sonar') Sound.pingAt = performance.now();
     this.timer = setTimeout(() => {
       if (this.g !== g) return;
       const ans = this.resolve('them', a);
@@ -2347,7 +2409,7 @@ const Bot = {
         this.timer = setTimeout(() => this.botTurn(), (k === 'sonar' ? 1300 : slow ? 2100 : 750) + rand(350));
       }
       this.render();
-    }, k === 'sonar' ? 200 : 260);
+    }, k === 'sonar' ? 200 : k === 'bomb' ? 760 : 260);
   },
   finish(win) {
     const g = this.g;
@@ -2785,7 +2847,8 @@ const Online = {
     }
     this.me.shots.push(a);
     this.view.myTurn = false;
-    Sound.play(k === 'bomb' ? 'bomb' : k === 'sonar' ? 'click' : 'fire');
+    Sound.play(k === 'bomb' ? 'bomb' : k === 'sonar' ? 'sonar' : 'fire');
+    if (k === 'sonar') Sound.pingAt = performance.now();
     this.publish();
     this.refresh();
   },
