@@ -335,6 +335,28 @@ h2.title { font-family: var(--f-display); font-weight: 400; font-size: clamp(28p
 .shake { animation: shake .45s; }
 @keyframes shake { 20% { transform: translate(-4px, 2px); } 40% { transform: translate(4px, -2px); } 60% { transform: translate(-3px, 1px); } 80% { transform: translate(2px, -1px); } }
 
+/* ---------- powers ---------- */
+.powers { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; max-width: 560px; }
+.power {
+  display: inline-flex; align-items: center; gap: 10px; text-align: left; flex: 1 1 200px;
+  background: var(--deep); border: 1px solid var(--grid); border-radius: 12px; padding: 9px 12px; cursor: pointer;
+  transition: border-color .15s, background .15s, opacity .15s;
+}
+.power svg { width: 26px; height: 26px; flex: none; color: var(--brass); }
+.power b { display: block; font-size: 14px; }
+.power small { display: block; font-size: 12px; color: var(--mist); }
+.power:hover:not(:disabled) { border-color: var(--brass); background: var(--deep-2); }
+.power[aria-pressed="true"] { border-color: var(--brass); background: var(--brass); color: #1b1405; }
+.power[aria-pressed="true"] svg, .power[aria-pressed="true"] small { color: #1b1405; }
+.power:disabled { opacity: .45; cursor: not-allowed; }
+.power.used b::after { content: " · kullanıldı"; font-weight: 400; color: var(--mist); }
+.cell.pv-bomb { background: rgba(239, 74, 53, .45) !important; box-shadow: inset 0 0 0 2px #ff9b8a !important; }
+.cell.pv-sonar { background: rgba(82, 194, 143, .35) !important; box-shadow: inset 0 0 0 2px #8ff0c4 !important; }
+.cell.contact { box-shadow: inset 0 0 0 2px var(--ok), 0 0 8px rgba(82, 194, 143, .6); animation: contact 1.6s ease-in-out infinite; }
+@keyframes contact { 50% { box-shadow: inset 0 0 0 2px rgba(82, 194, 143, .45), 0 0 2px rgba(82, 194, 143, .2); } }
+.fx-sonar { border: 2px solid #8ff0c4; animation: ripple 1.1s ease-out forwards; }
+.turn .bonus { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--ok); color: #062014; }
+
 /* ---------- sinking ---------- */
 .shipimg.sinking-hide { opacity: 0; }
 .shipimg.wreck-in { animation: wreckIn .6s ease both; }
@@ -434,6 +456,7 @@ h2.title { font-family: var(--f-display); font-weight: 400; font-size: clamp(28p
 .log li b { font-family: var(--f-mono); color: var(--foam); min-width: 2.6em; }
 .log li.hit { color: #ffb4a6; }
 .log li.sunk { color: var(--brass); font-weight: 600; }
+.log li.sonar-yes { color: #8ff0c4; }
 .mini-h { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: var(--mist); margin-bottom: 8px; font-family: var(--f-mono); }
 
 /* ---------- help ---------- */
@@ -483,6 +506,11 @@ h2.title { font-family: var(--f-display); font-weight: 400; font-size: clamp(28p
 @media (max-width: 640px) {
   .diff-grid, .lobby, .help { grid-template-columns: 1fr; }
   .rule { grid-template-columns: 1fr; gap: 6px; }
+  .powers { flex-wrap: nowrap; }
+  .power { flex: 1 1 0; min-width: 0; padding: 8px 10px; gap: 8px; }
+  .power svg { width: 22px; height: 22px; }
+  .power small { display: none; }
+  .power.used b::after { content: " ✓"; }
   .seascape .moonlight { background: radial-gradient(circle at 78% 15%, rgba(255, 252, 235, .95) 0 22px, rgba(255, 250, 225, .3) 24px, rgba(190, 215, 255, .12) 80px, transparent 200px); }
   .seascape .reflect { left: 78%; top: 19%; width: 110px; }
   .side { grid-template-columns: 1fr; }
@@ -674,6 +702,16 @@ h2.title { font-family: var(--f-display); font-weight: 400; font-size: clamp(28p
     </div>
     <div class="battle">
       <div class="target">
+        <div class="powers" id="powers" hidden>
+          <button class="power" type="button" id="pw-bomb" data-p="bomb">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="14" r="7"/><path d="M14.5 9.5 17 7M17 7l1-1M19 3v2M21 5h-2M16.5 3.5l1 1"/></svg>
+            <span><b>Bomba</b><small>2×2 alanı vurur · rakibe 1 ıska hakkı</small></span>
+          </button>
+          <button class="power" type="button" id="pw-sonar" data-p="sonar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19.1 4.9a10 10 0 0 1 0 14.2M4.9 19.1a10 10 0 0 1 0-14.2"/></svg>
+            <span><b>Sonar</b><small>2×2 alanı tarar · sıran gitmez</small></span>
+          </button>
+        </div>
         <div class="board-title"><h3>Düşman Suları</h3><span id="target-sub">Ateş etmek için bir kare seç</span></div>
         <div id="target-board"></div>
       </div>
@@ -716,6 +754,14 @@ h2.title { font-family: var(--f-display); font-weight: 400; font-size: clamp(28p
           <li>Iskalarsan (beyaz nokta) sıra rakibe geçer. İsabet ettirirsen (kırmızı) yeniden atarsın.</li>
           <li>Bir geminin bütün kareleri vurulunca gemi batar, çevresindeki boş kareler işaretlenir.</li>
           <li>Rakibin bütün filosunu ilk batıran kazanır.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Özel silahlar</h3>
+        <ul>
+          <li><b>Bomba:</b> Seçtiğin 2×2 alandaki 4 kareyi tek seferde vurur. Bedeli: rakibin bir sonraki turunda ilk ıskası sırasını bitirmez.</li>
+          <li><b>Sonar:</b> 2×2 alanı tarar. Gemi yoksa kareler boş işaretlenir, varsa yeşil "temas" olarak görünür. Sıranı harcamaz.</li>
+          <li>Her biri oyunda bir kez kullanılır. Kurallardan kapatılabilir.</li>
         </ul>
       </div>
       <div class="panel">
@@ -817,15 +863,15 @@ function neighbors4(i) {
   return out;
 }
 /* ---- game rules (chosen before a game; the room host's rules apply online) ---- */
-const DEFAULT_RULES = { extra: true, touch: false, timer: 0 };
+const DEFAULT_RULES = { extra: true, touch: false, timer: 0, powers: true };
 function cleanRules(r) {
   r = r || {};
-  return { extra: r.extra !== false, touch: r.touch === true, timer: [0, 15, 30].includes(+r.timer) ? +r.timer : 0 };
+  return { extra: r.extra !== false, touch: r.touch === true, timer: [0, 15, 30].includes(+r.timer) ? +r.timer : 0, powers: r.powers !== false };
 }
 let RULES = { ...DEFAULT_RULES };
 const prefRules = () => cleanRules(store.get('rules', DEFAULT_RULES));
 function rulesText(r = RULES) {
-  return [r.extra ? 'İsabette tekrar atış' : 'Her tura tek atış', r.touch ? 'Gemiler değebilir' : 'Gemiler değemez', r.timer ? `${r.timer} sn süre` : 'Süresiz'].join(' · ');
+  return [r.extra ? 'İsabette tekrar atış' : 'Her tura tek atış', r.touch ? 'Gemiler değebilir' : 'Gemiler değemez', r.timer ? `${r.timer} sn süre` : 'Süresiz', r.powers ? 'Özel silahlar açık' : 'Özel silahlar kapalı'].join(' · ');
 }
 function canPlace(fleet, s) {
   if (!inBounds(s)) return false;
@@ -869,8 +915,9 @@ function aroundCells(cells) {
 
 /* Knowledge of a board as seen by the shooter.
    0 unknown · 1 miss · 2 hit · 3 sunk · 4 known empty (around a sunk ship) */
-function newKnowledge() { return { cell: new Array(N * N).fill(0), sunk: [], last: -1, shots: 0, hits: 0 }; }
+function newKnowledge() { return { cell: new Array(N * N).fill(0), sunk: [], last: -1, shots: 0, hits: 0, contact: new Set() }; }
 function applyResult(K, i, res) {
+  if (!res || res.dup) return;
   K.shots++; K.last = i;
   if (res.r === 'miss') { K.cell[i] = 1; return; }
   K.hits++;
@@ -878,6 +925,80 @@ function applyResult(K, i, res) {
   for (const c of res.cells) K.cell[c] = 3;
   if (!RULES.touch) for (const a of aroundCells(res.cells)) if (K.cell[a] === 0) K.cell[a] = 4;
   K.sunk.push({ id: res.id, cells: res.cells });
+  if (res.cells.some(c => K.contact.has(c))) K.contact.clear();
+}
+
+/* ============================== actions & turns ============================== */
+// An action is a cell index (normal shot), {b: cells} (bomb, 2x2) or {s: cells} (sonar, 2x2).
+// Its answer is a shot result, {m: [results]} for a bomb, or {sonar: true|false}.
+const actKind = a => typeof a === 'number' ? 'shot' : a && a.b ? 'bomb' : a && a.s ? 'sonar' : 'none';
+const actCells = a => typeof a === 'number' ? [a] : a && (a.b || a.s) || [];
+function actResults(a, ans) {
+  const k = actKind(a);
+  if (k === 'shot') return [ans || { r: 'miss' }];
+  if (k === 'bomb') return (ans && Array.isArray(ans.m)) ? ans.m : [];
+  return [];
+}
+function area2(i) {
+  let [r, c] = rc(i);
+  r = Math.min(r, N - 2); c = Math.min(c, N - 2);
+  return [ix(r, c), ix(r, c + 1), ix(r + 1, c), ix(r + 1, c + 1)];
+}
+const areaLabel = cells => coord(Math.min(...cells)) + '–' + coord(Math.max(...cells));
+function cleanAction(a) {
+  const ok = n => Number.isInteger(n) && n >= 0 && n < N * N;
+  if (ok(a)) return a;
+  if (a && Array.isArray(a.b) && a.b.length && a.b.length <= 4 && a.b.every(ok)) return { b: a.b.slice() };
+  if (a && Array.isArray(a.s) && a.s.length && a.s.length <= 4 && a.s.every(ok)) return { s: a.s.slice() };
+  return { s: [] };
+}
+// The defender answers an action against its own fleet. hits / shot track earlier answers.
+function answerAction(fleet, hits, shot, a) {
+  const one = i => {
+    if (shot.has(i)) return { r: 'miss', dup: true };
+    shot.add(i);
+    const res = resolveShot(fleet, hits, i);
+    if (res.r !== 'miss') hits.add(i);
+    return res;
+  };
+  const k = actKind(a);
+  if (k === 'shot') return one(a);
+  if (k === 'bomb') return { m: a.b.map(one) };
+  if (k === 'sonar') { const cells = new Set(fleet.flatMap(shipCells)); return { sonar: a.s.some(i => cells.has(i)) }; }
+  return { sonar: false };
+}
+function noteAnswered(hits, shot, a, ans) {
+  const cells = actCells(a), res = actResults(a, ans);
+  if (actKind(a) === 'sonar') return;
+  cells.forEach((c, k) => { const r = res[k]; if (!r || r.dup) return; shot.add(c); if (r.r !== 'miss') hits.add(c); });
+}
+function applyAction(K, a, ans) {
+  const k = actKind(a);
+  if (k === 'sonar') {
+    if (ans && ans.sonar) a.s.forEach(c => { if (K.cell[c] === 0) K.contact.add(c); });
+    else a.s.forEach(c => { if (K.cell[c] === 0) K.cell[c] = 4; });
+    return;
+  }
+  const cells = actCells(a), res = actResults(a, ans);
+  cells.forEach((c, i) => applyResult(K, c, res[i]));
+}
+// Shared turn engine. A bomb gives the other side one "free miss" on its next turn:
+// the first time that turn would end, it doesn't.
+function newTurns(first, a, b) {
+  return { turn: first, bonus: { [a]: 0, [b]: 0 }, sunk: { [a]: 0, [b]: 0 }, used: { [a]: {}, [b]: {} }, winner: null, bonusUsed: null };
+}
+function stepTurn(T, by, other, a, ans) {
+  const k = actKind(a);
+  T.bonusUsed = null;
+  if (k === 'sonar') { T.used[by].sonar = true; return; }
+  const res = actResults(a, ans);
+  for (const r of res) if (r && r.r === 'sunk' && ++T.sunk[by] >= TOTAL_SHIPS) { T.winner = by; }
+  if (k === 'bomb') { T.used[by].bomb = true; T.bonus[other] += 1; }
+  if (T.winner) return;
+  const anyHit = res.some(r => r && !r.dup && r.r !== 'miss');
+  if (anyHit && RULES.extra) return;
+  if (T.bonus[by] > 0) { T.bonus[by]--; T.bonusUsed = by; return; }
+  T.turn = other;
 }
 
 /* ============================== bot AI ============================== */
@@ -886,6 +1007,15 @@ function botPick(K, level) {
   K.cell.forEach((v, i) => { if (v === 0) unknown.push(i); });
   const hits = [];
   K.cell.forEach((v, i) => { if (v === 2) hits.push(i); });
+
+  const contact = [...K.contact].filter(i => K.cell[i] === 0);
+  if (!hits.length && contact.length && level !== 'easy') {
+    if (level === 'medium') return pick(contact);
+    const sc = probScores(K);
+    let best = -1, bc = [];
+    for (const i of contact) { if (sc[i] > best) { best = sc[i]; bc = [i]; } else if (sc[i] === best) bc.push(i); }
+    return pick(bc);
+  }
 
   if (level === 'easy') {
     if (hits.length && Math.random() < .35) {
@@ -969,6 +1099,61 @@ function botPick(K, level) {
     else if (score[i] === best) bestCells.push(i);
   }
   return best > 0 ? pick(bestCells) : pick(pool);
+}
+
+// Probability that each unknown cell holds a ship, from every legal placement of the ships still afloat (hunt mode).
+function probScores(K) {
+  const remaining = SHIPS.filter(s => !K.sunk.some(x => x.id === s.id)).map(s => s.len);
+  const score = new Array(N * N).fill(0);
+  for (const len of remaining) for (const dir of ['e', 's']) for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    const sh = { len, r, c, dir };
+    if (!inBounds(sh)) continue;
+    const cells = shipCells(sh);
+    if (cells.some(ci => K.cell[ci] !== 0 && K.cell[ci] !== 2)) continue;
+    for (const ci of cells) if (K.cell[ci] === 0) score[ci]++;
+  }
+  return score;
+}
+// Medium and hard bots: sonar early while hunting, bomb a little later (or straight onto a sonar contact).
+function botDecide(K, level, used) {
+  if (!RULES.powers || level === 'easy') return botPick(K, level);
+  const hunting = !K.cell.some(v => v === 2);
+  const contact = [...K.contact].filter(i => K.cell[i] === 0);
+  const areas = [];
+  for (let r = 0; r < N - 1; r++) for (let c = 0; c < N - 1; c++) {
+    const cells = area2(ix(r, c));
+    const unk = cells.filter(i => K.cell[i] === 0);
+    areas.push({ cells, unk });
+  }
+  const bestArea = (minUnknown, preferContact) => {
+    const ok = areas.filter(a => a.unk.length >= minUnknown);
+    if (!ok.length) return null;
+    if (level === 'medium') {
+      const full = ok.filter(a => a.unk.length === 4);
+      const pool = preferContact && contact.length ? ok.filter(a => a.unk.some(i => contact.includes(i))) : (full.length ? full : ok);
+      return pick(pool.length ? pool : ok);
+    }
+    const sc = probScores(K);
+    let best = null, bv = -1;
+    for (const a of ok) {
+      let v = a.unk.reduce((t, i) => t + sc[i] * (contact.includes(i) ? 6 : 1), 0);
+      if (v > bv) { bv = v; best = a; }
+    }
+    return best;
+  };
+  if (!used.sonar && hunting && !contact.length && K.shots >= (level === 'hard' ? 2 : 5) && Math.random() < (level === 'hard' ? 1 : .4)) {
+    const a = bestArea(3, false);
+    if (a) return { s: a.cells };
+  }
+  if (!used.bomb && hunting) {
+    const onContact = contact.length && Math.random() < (level === 'hard' ? .9 : .5);
+    const later = K.shots >= (level === 'hard' ? 7 : 10) && Math.random() < (level === 'hard' ? .5 : .3);
+    if (onContact || later) {
+      const a = bestArea(2, !!onContact);
+      if (a) return { b: a.unk };
+    }
+  }
+  return botPick(K, level);
 }
 
 /* ============================== sound ============================== */
@@ -1179,6 +1364,11 @@ const Sound = {
         this.with(.45, false, () => [392, 349, 311, 262].forEach((f, k) => this.tone(f, .6, 'triangle', .22, k * .3)));
         break;
       case 'ready': this.tone(392, .2, 'triangle', .35); this.tone(523, .32, 'triangle', .35, .16); break;
+      case 'bomb': this.cannon(1); this.cannon(.8, .12); break;
+      case 'sonar':
+        this.with(.85, false, () => { this.tone(1350, .45, 'sine', .3); this.tone(1350, .35, 'sine', .1, .55); this.tone(1350, .3, 'sine', .04, 1.05); });
+        break;
+      case 'contact': this.with(.6, false, () => { this.tone(880, .14, 'sine', .25); this.tone(1320, .2, 'sine', .22, .12); }); break;
       case 'tick': this.tone(1500, .035, 'square', .08); break;
       case 'ping': this.tone(1250, .25, 'sine', .25); this.tone(1250, .4, 'sine', .1, .25); break;
       case 'join': this.tone(660, .1, 'triangle', .3); this.tone(880, .12, 'triangle', .3, .1); this.tone(1320, .18, 'triangle', .25, .2); break;
@@ -1581,6 +1771,8 @@ function leaveToMenu() {
   show('menu');
 }
 $('#place-leave').addEventListener('click', requestLeave);
+$('#pw-bomb').addEventListener('click', () => Battle.arm('bomb'));
+$('#pw-sonar').addEventListener('click', () => Battle.arm('sonar'));
 $('#battle-leave').addEventListener('click', requestLeave);
 $('#lobby-back').addEventListener('click', () => { Sound.play('click'); Online.shutdown(); show('menu'); });
 $$('.diff').forEach(b => b.addEventListener('click', () => { Sound.play('select'); Bot.prepare(b.dataset.level); }));
@@ -1590,6 +1782,7 @@ const RULE_OPTS = [
   { key: 'extra', label: 'İsabet edince', opts: [[true, 'Tekrar atar'], [false, 'Sıra geçer']] },
   { key: 'touch', label: 'Gemiler', opts: [[false, 'Birbirine değemez'], [true, 'Değebilir']] },
   { key: 'timer', label: 'Atış süresi', opts: [[0, 'Süresiz'], [15, '15 sn'], [30, '30 sn']] },
+  { key: 'powers', label: 'Özel silahlar', opts: [[true, 'Açık'], [false, 'Kapalı']] },
 ];
 function renderRuleSlots() {
   const r = prefRules();
@@ -1889,35 +2082,92 @@ document.addEventListener('keydown', e => {
 
 /* ============================== battle view ============================== */
 const Battle = {
-  target: null, own: null, log: [], onShoot: null,
-  open({ oppName, onShoot }) {
-    this.onShoot = onShoot; this.log = [];
-    this.target = createBoard($('#target-board'), { interactive: true, onCell: i => this.onShoot?.(i) });
+  target: null, own: null, log: [], onAction: null, armed: null, pending: null, hover: -1, ptr: 'mouse',
+  open({ oppName, onAction }) {
+    this.onAction = onAction; this.log = []; this.armed = null; this.pending = null;
+    this.target = createBoard($('#target-board'), {
+      interactive: true,
+      onCell: i => this.cellClick(i),
+      onHover: i => { this.hover = i; this.paintArea(); },
+      onLeave: () => { this.hover = -1; this.paintArea(); },
+    });
+    this.target.el.addEventListener('pointerdown', e => { this.ptr = e.pointerType || 'mouse'; }, true);
     this.own = createBoard($('#own-board'));
     this.target.el.classList.add('no-scroll');
     $('#battle-opp-name').textContent = oppName;
     $('#log').innerHTML = '';
     show('battle');
   },
+  cellClick(i) {
+    const lv = this.lastView;
+    if (!lv || lv.over || lv.turn !== 'me') return;
+    if (!this.armed) { if (lv.targetK.cell[i] === 0) this.onAction?.(i); return; }
+    const cells = area2(i), unk = cells.filter(c => lv.targetK.cell[c] === 0);
+    if (!unk.length) { Sound.play('error'); toast('Bu alanda bilinmeyen kare kalmamış. Başka bir yer seç.'); return; }
+    const key = cells.join(',');
+    if (this.ptr !== 'mouse' && this.pending !== key) {
+      this.pending = key; this.hover = i; this.paintArea();
+      toast('Onaylamak için aynı alana tekrar dokun.');
+      return;
+    }
+    const kind = this.armed;
+    this.armed = null; this.pending = null;
+    this.onAction?.(kind === 'bomb' ? { b: unk } : { s: cells });
+  },
+  arm(kind) {
+    const lv = this.lastView;
+    if (!lv || lv.over || lv.turn !== 'me' || !lv.powers || lv.powers[kind]) return;
+    this.armed = this.armed === kind ? null : kind;
+    this.pending = null;
+    Sound.play(this.armed ? 'select' : 'click');
+    if (this.armed) toast(kind === 'bomb' ? 'Bomba hazır: düşman sularında 2×2 alan seç.' : 'Sonar hazır: taranacak 2×2 alanı seç.');
+    this.renderPowers(); this.paintArea();
+  },
+  paintArea() {
+    if (!this.target) return;
+    this.target.cells.forEach(c => c.classList.remove('pv-bomb', 'pv-sonar'));
+    if (!this.armed || this.hover < 0) return;
+    area2(this.hover).forEach(c => this.target.cells[c].classList.add(this.armed === 'bomb' ? 'pv-bomb' : 'pv-sonar'));
+  },
+  renderPowers() {
+    const lv = this.lastView, box = $('#powers');
+    box.hidden = !(lv && lv.powers);
+    if (box.hidden) return;
+    for (const kind of ['bomb', 'sonar']) {
+      const b = $('#pw-' + kind), used = !!lv.powers[kind];
+      b.classList.toggle('used', used);
+      b.disabled = used || lv.over || lv.turn !== 'me';
+      b.setAttribute('aria-pressed', String(this.armed === kind));
+    }
+  },
   render(v) {
     this.lastView = v;
+    if (v.over || v.turn !== 'me' || !v.powers) { this.armed = null; this.pending = null; }
     $('#battle-rules').textContent = rulesText();
-    TurnTimer.sync(v.turn === 'me' && !v.over, (v.round || 0) + ':' + v.targetK.shots, () => {
+    TurnTimer.sync(v.turn === 'me' && !v.over, (v.round || 0) + ':' + v.targetK.shots + ':' + (v.acts || 0), () => {
       const lv = this.lastView;
       if (!lv || lv.over || lv.turn !== 'me') return;
+      this.armed = null; this.pending = null;
       const free = []; lv.targetK.cell.forEach((c, i) => { if (c === 0) free.push(i); });
-      if (free.length) this.onShoot?.(pick(free));
+      if (free.length) this.onAction?.(pick(free));
     });
     paintTarget(this.target, v.targetK, v.reveal);
+    this.target.cells.forEach((c, i) => c.classList.toggle('contact', v.targetK.contact.has(i) && v.targetK.cell[i] === 0));
+    this.renderPowers(); this.paintArea();
     paintOwn(this.own, v.myFleet, v.incomingK);
     this.target.el.classList.toggle('armed', v.turn === 'me' && !v.over);
     const t = $('#turn');
     t.className = 'turn ' + (v.over ? '' : v.turn === 'me' ? 'me' : 'them');
     t.querySelector('.dot').className = 'dot ' + (v.turn === 'me' ? 'on' : 'wait');
     $('#turn-text').textContent = v.over ? 'Savaş bitti' : v.turnText;
+    let bonus = $('#turn .bonus');
+    if (!bonus) { bonus = document.createElement('span'); bonus.className = 'bonus'; $('#turn-text').after(bonus); }
+    bonus.hidden = !(v.bonus > 0 && !v.over);
+    bonus.textContent = v.turn === 'me' ? '+1 ıska hakkın var' : 'Rakibin 1 ıska hakkı var';
     $('#target-sub').textContent = v.turn === 'me' && !v.over ? 'Ateş etmek için bir kare seç' : `${v.targetK.sunk.length}/${TOTAL_SHIPS} gemi batırıldı`;
     $('#own-sub').textContent = `${TOTAL_SHIPS - v.incomingK.sunk.length}/${TOTAL_SHIPS} gemi ayakta`;
-    $('#enemy-status').innerHTML = fleetStatusHTML(v.targetK.sunk.map(s => s.id));
+    $('#enemy-status').innerHTML = fleetStatusHTML(v.targetK.sunk.map(s => s.id)) + (v.oppPowers
+      ? `<div class="fleet-row" style="margin-top:6px"><span>Rakibin silahları</span><span style="font-family:var(--f-mono);font-size:12px">Bomba ${v.oppPowers.bomb ? '✗' : '●'} · Sonar ${v.oppPowers.sonar ? '✗' : '●'}</span></div>` : '');
     const acc = v.targetK.shots ? Math.round(100 * v.targetK.hits / v.targetK.shots) : 0;
     $('#battle-stats').innerHTML = `
       <div class="stat"><b>${v.targetK.shots}</b><small>Atış</small></div>
@@ -1926,15 +2176,44 @@ const Battle = {
   },
   addLog(who, i, res, shipName) {
     const text = res.r === 'miss' ? 'Iska' : res.r === 'hit' ? 'İsabet!' : `${shipName} battı!`;
-    this.log.unshift({ who, at: coord(i), text, cls: res.r });
+    this.addLine(who, coord(i), text, res.r);
+  },
+  // Log line + effects for any action (shot, bomb, sonar)
+  showAction(board, who, a, ans) {
+    const k = actKind(a);
+    if (k === 'shot') {
+      if (ans && ans.dup) return;
+      this.addLog(who, a, ans, ans.id && SHIP_BY_ID[ans.id]?.name);
+      this.effect(board, a, ans);
+      return;
+    }
+    const cells = actCells(a);
+    if (k === 'sonar') {
+      const found = !!(ans && ans.sonar);
+      this.addLine(who, areaLabel(cells), `Sonar: ${found ? 'gemi var!' : 'boş'}`, found ? 'sonar-yes' : 'miss');
+      cells.forEach(c => fx(board, c, 'sonar'));
+      Sound.play('sonar');
+      if (found) setTimeout(() => Sound.play('contact'), 700);
+      return;
+    }
+    const res = actResults(a, ans);
+    const hits = res.filter(r => r && !r.dup && r.r !== 'miss').length;
+    this.addLine(who, areaLabel(cells), `Bomba: ${hits ? hits + ' isabet' : 'hepsi ıska'}`, hits ? 'hit' : 'miss');
+    res.forEach(r => { if (r && r.r === 'sunk') this.addLine(who, '', `${SHIP_BY_ID[r.id]?.name} battı!`, 'sunk'); });
+    const worst = res.some(r => r && r.r === 'sunk') ? 'sunk' : hits ? 'hit' : 'splash';
+    cells.forEach((c, n) => setTimeout(() => this.effect(board, c, res[n] || { r: 'miss' }, true), n * 110));
+    setTimeout(() => Sound.play(worst), 120);
+  },
+  addLine(who, at, text, cls) {
+    this.log.unshift({ who, at, text, cls });
     this.log = this.log.slice(0, 40);
     $('#log').innerHTML = this.log.map(l => `<li class="${l.cls}"><b>${l.at}</b><span>${esc(l.who)}: ${l.text}</span></li>`).join('');
   },
-  effect(board, i, res) {
-    if (res.r === 'miss') { fx(board, i, 'miss'); Sound.play('splash'); }
-    else if (res.r === 'hit') { fx(board, i, 'hit'); Sound.play('hit'); }
+  effect(board, i, res, quiet) {
+    if (res.r === 'miss') { fx(board, i, 'miss'); if (!quiet) Sound.play('splash'); }
+    else if (res.r === 'hit') { fx(board, i, 'hit'); if (!quiet) Sound.play('hit'); }
     else {
-      fx(board, i, 'hit'); Sound.play('sunk'); shake(board.el);
+      fx(board, i, 'hit'); if (!quiet) Sound.play('sunk'); shake(board.el);
       let ship = null;
       const lv = this.lastView;
       if (board === this.own && lv) ship = lv.myFleet.find(s => s.id === res.id);
@@ -1992,62 +2271,83 @@ const Bot = {
   },
   start(fleet) {
     hideReturnBar();
+    const first = Math.random() < .5 ? 'me' : 'them';
     this.g = {
       myFleet: fleet, botFleet: randomFleet(),
       targetK: newKnowledge(), incomingK: newKnowledge(),
-      myHits: new Set(), botHits: new Set(),
-      turn: Math.random() < .5 ? 'me' : 'them', over: false, started: Date.now(),
+      myHits: new Set(), myShot: new Set(), botHits: new Set(), botShot: new Set(),
+      T: newTurns(first, 'me', 'them'), acts: 0, over: false, started: Date.now(),
     };
-    Battle.open({ oppName: LEVEL_NAMES[this.level], onShoot: i => this.shoot(i) });
+    Battle.open({ oppName: LEVEL_NAMES[this.level], onAction: a => this.playerAct(a) });
     $('#battle-opp .dot').className = 'dot on';
     this.render();
-    toast(this.g.turn === 'me' ? 'Yazı tura: ilk atış senin.' : 'Yazı tura: ilk atış rakipte.');
-    if (this.g.turn === 'them') this.timer = setTimeout(() => this.botTurn(), 1100);
+    toast(first === 'me' ? 'Yazı tura: ilk atış senin.' : 'Yazı tura: ilk atış rakipte.');
+    if (first === 'them') this.timer = setTimeout(() => this.botTurn(), 1100);
   },
   view() {
-    const g = this.g;
+    const g = this.g, T = g.T, myTurn = T.turn === 'me' && !g.busy;
+    const name = LEVEL_NAMES[this.level];
     return {
-      myFleet: g.myFleet, targetK: g.targetK, incomingK: g.incomingK, turn: g.turn, over: g.over,
+      myFleet: g.myFleet, targetK: g.targetK, incomingK: g.incomingK, over: g.over, acts: g.acts,
+      turn: myTurn ? 'me' : 'them',
       reveal: g.over ? g.botFleet : null,
-      turnText: g.turn === 'me' ? 'Sıra sende, ateş et' : `${LEVEL_NAMES[this.level]} nişan alıyor…`,
+      turnText: T.turn === 'me' ? 'Sıra sende, ateş et' : `${name} nişan alıyor…`,
+      bonus: T.bonus[T.turn],
+      powers: RULES.powers ? { bomb: !!T.used.me.bomb, sonar: !!T.used.me.sonar } : null,
+      oppPowers: RULES.powers && this.level !== 'easy' ? { bomb: !!T.used.them.bomb, sonar: !!T.used.them.sonar } : null,
     };
   },
   render() { Battle.render(this.view()); },
-  shoot(i) {
+  // resolve one action, show it, advance the turn
+  resolve(by, a) {
+    const g = this.g, mine = by === 'me';
+    const ans = answerAction(mine ? g.botFleet : g.myFleet, mine ? g.myHits : g.botHits, mine ? g.myShot : g.botShot, a);
+    applyAction(mine ? g.targetK : g.incomingK, a, ans);
+    Battle.showAction(mine ? Battle.target : Battle.own, mine ? 'Sen' : LEVEL_NAMES[this.level], a, ans);
+    stepTurn(g.T, by, mine ? 'them' : 'me', a, ans);
+    g.acts++;
+    if (actKind(a) === 'bomb') toast(mine ? 'Bomba kullandın: rakibe 1 ıska hakkı verildi.' : 'Rakip bomba kullandı: sana 1 ıska hakkı verildi.', 3200);
+    if (g.T.bonusUsed) toast(g.T.bonusUsed === 'me' ? 'Iska hakkını kullandın, sıra hâlâ sende.' : 'Rakip ıska hakkını kullandı, sıra onda kalıyor.');
+    return ans;
+  },
+  playerAct(a) {
     const g = this.g;
-    if (!g || g.over || g.turn !== 'me' || g.targetK.cell[i] !== 0 || g.busy) return;
+    if (!g || g.over || g.T.turn !== 'me' || g.busy) return;
+    const k = actKind(a);
+    if (k === 'shot' && g.targetK.cell[a] !== 0) return;
+    if (k !== 'shot' && (!RULES.powers || g.T.used.me[k === 'bomb' ? 'bomb' : 'sonar'])) return;
     g.busy = true;
-    Sound.play('fire');
+    Sound.play(k === 'bomb' ? 'bomb' : k === 'sonar' ? 'click' : 'fire');
+    this.render();
     setTimeout(() => {
       if (this.g !== g) return;
       g.busy = false;
-      const res = resolveShot(g.botFleet, g.myHits, i);
-      if (res.r !== 'miss') g.myHits.add(i);
-      applyResult(g.targetK, i, res);
-      Battle.effect(Battle.target, i, res);
-      Battle.addLog('Sen', i, res, res.id && SHIP_BY_ID[res.id].name);
-      if (g.targetK.sunk.length === TOTAL_SHIPS) return this.finish(true);
-      if (res.r === 'miss' || !RULES.extra) { g.turn = 'them'; this.timer = setTimeout(() => this.botTurn(), res.r === 'sunk' ? 2000 : 1000); }
+      const ans = this.resolve('me', a);
+      if (g.T.winner) return this.finish(true);
+      if (g.T.turn === 'them') {
+        const slow = actResults(a, ans).some(r => r && r.r === 'sunk') || k === 'bomb';
+        this.timer = setTimeout(() => this.botTurn(), slow ? 2100 : 1000);
+      }
       this.render();
-    }, 230);
+    }, k === 'sonar' ? 120 : 230);
   },
   botTurn() {
     const g = this.g;
     if (!g || g.over) return;
-    const i = botPick(g.incomingK, this.level);
-    Sound.play('fire');
+    const a = botDecide(g.incomingK, this.level, g.T.used.them);
+    const k = actKind(a);
+    Sound.play(k === 'bomb' ? 'bomb' : k === 'sonar' ? 'click' : 'fire');
     this.timer = setTimeout(() => {
       if (this.g !== g) return;
-      const res = resolveShot(g.myFleet, g.botHits, i);
-      if (res.r !== 'miss') g.botHits.add(i);
-      applyResult(g.incomingK, i, res);
-      Battle.effect(Battle.own, i, res);
-      Battle.addLog(LEVEL_NAMES[this.level], i, res, res.id && SHIP_BY_ID[res.id].name);
-      if (g.incomingK.sunk.length === TOTAL_SHIPS) return this.finish(false);
-      if (res.r === 'miss' || !RULES.extra) { g.turn = 'me'; setTimeout(() => Sound.play('ping'), res.r === 'sunk' ? 1600 : 500); }
-      else this.timer = setTimeout(() => this.botTurn(), (res.r === 'sunk' ? 2000 : 750) + rand(350));
+      const ans = this.resolve('them', a);
+      if (g.T.winner) return this.finish(false);
+      if (g.T.turn === 'me') { setTimeout(() => Sound.play('ping'), actResults(a, ans).some(r => r && r.r === 'sunk') ? 1600 : 500); }
+      else {
+        const slow = actResults(a, ans).some(r => r && r.r === 'sunk') || k === 'bomb';
+        this.timer = setTimeout(() => this.botTurn(), (k === 'sonar' ? 1300 : slow ? 2100 : 750) + rand(350));
+      }
       this.render();
-    }, 260);
+    }, k === 'sonar' ? 200 : 260);
   },
   finish(win) {
     const g = this.g;
@@ -2224,7 +2524,7 @@ function netErrorText(e) {
 // Both clients replay the two lists with the same rules, so they always agree on whose turn it is.
 const Online = {
   active: false, net: null, role: null, code: null, me: null, opp: null, myFleet: null,
-  phase: 'idle', seenIn: 0, seenOut: 0, revealed: false, overShown: false, startedAt: 0,
+  phase: 'idle', seenEv: 0, revealed: false, overShown: false, startedAt: 0,
 
   freshMe(round = 1) {
     return { v: 1, name: playerName(), round, ready: false, shots: [], answers: [], fleet: null, left: false, rules: this.role === 'guest' ? null : RULES };
@@ -2304,7 +2604,7 @@ const Online = {
 
   startPlacement() {
     this.phase = 'placing';
-    this.myFleet = null; this.seenIn = 0; this.seenOut = 0; this.revealed = false; this.overShown = false;
+    this.myFleet = null; this.seenEv = 0; this.revealed = false; this.overShown = false;
     hideReturnBar();
     closeOverlay();
     Place.open({
@@ -2338,7 +2638,7 @@ const Online = {
     const prev = this.opp;
     this.opp = {
       name: String(s.name || 'Rakip').slice(0, 16), round: +s.round || 1, ready: !!s.ready,
-      shots: Array.isArray(s.shots) ? s.shots.filter(n => Number.isInteger(n) && n >= 0 && n < N * N) : [],
+      shots: Array.isArray(s.shots) ? s.shots.map(cleanAction) : [],
       answers: Array.isArray(s.answers) ? s.answers : [], fleet: Array.isArray(s.fleet) ? s.fleet : null, left: !!s.left,
     };
     if (this.opp.left) { this.opponentGone(); return; }
@@ -2364,15 +2664,11 @@ const Online = {
   answerIncoming() {
     const me = this.me, opp = this.opp;
     if (!opp || !me.ready || !opp.ready || opp.round !== me.round || !this.myFleet) return false;
-    const hits = new Set();
-    me.answers.forEach((a, k) => { if (a && a.r !== 'miss') hits.add(opp.shots[k]); });
+    const hits = new Set(), shot = new Set();
+    me.answers.forEach((ans, k) => noteAnswered(hits, shot, opp.shots[k], ans));
     let changed = false;
     while (me.answers.length < opp.shots.length) {
-      const i = opp.shots[me.answers.length];
-      if (me.answers.slice(0, me.answers.length).some((_, k) => opp.shots[k] === i)) { me.answers.push({ r: 'miss' }); changed = true; continue; }
-      const res = resolveShot(this.myFleet, hits, i);
-      if (res.r !== 'miss') hits.add(i);
-      me.answers.push(res);
+      me.answers.push(answerAction(this.myFleet, hits, shot, opp.shots[me.answers.length]));
       changed = true;
     }
     return changed;
@@ -2381,26 +2677,23 @@ const Online = {
     const me = this.me, opp = this.opp;
     const amHost = this.role === 'host';
     const H = amHost ? me : opp, G = amHost ? opp : me;
-    const first = me.round % 2 === 1 ? 'host' : 'guest';
-    let turn = first, i = 0, j = 0, pending = false;
-    const hostRes = [], guestRes = [];
-    let hostSunk = 0, guestSunk = 0, winner = null;
-    for (let guard = 0; guard < 500; guard++) {
-      if (turn === 'host') {
+    const T = newTurns(me.round % 2 === 1 ? 'host' : 'guest', 'host', 'guest');
+    let i = 0, j = 0, pending = false;
+    const events = [];
+    for (let guard = 0; guard < 600 && !T.winner; guard++) {
+      if (T.turn === 'host') {
         if (i >= H.shots.length) break;
         if (i >= G.answers.length) { pending = true; break; }
-        const res = G.answers[i]; hostRes.push({ i: H.shots[i], res }); i++;
-        if (res.r === 'sunk' && ++hostSunk === TOTAL_SHIPS) { winner = 'host'; break; }
-        if (res.r === 'miss' || !RULES.extra) turn = 'guest';
+        const a = H.shots[i], ans = G.answers[i]; i++;
+        events.push({ by: 'host', a, ans }); stepTurn(T, 'host', 'guest', a, ans);
       } else {
         if (j >= G.shots.length) break;
         if (j >= H.answers.length) { pending = true; break; }
-        const res = H.answers[j]; guestRes.push({ i: G.shots[j], res }); j++;
-        if (res.r === 'sunk' && ++guestSunk === TOTAL_SHIPS) { winner = 'guest'; break; }
-        if (res.r === 'miss' || !RULES.extra) turn = 'host';
+        const a = G.shots[j], ans = H.answers[j]; j++;
+        events.push({ by: 'guest', a, ans }); stepTurn(T, 'guest', 'host', a, ans);
       }
     }
-    return { turn, pending, winner, mine: amHost ? hostRes : guestRes, theirs: amHost ? guestRes : hostRes };
+    return { T, turn: T.turn, pending, winner: T.winner, events };
   },
   refresh() {
     if (!this.active || !this.me) return;
@@ -2414,7 +2707,8 @@ const Online = {
     if (this.phase === 'placing') {
       this.phase = 'battle';
       this.startedAt = Date.now();
-      Battle.open({ oppName: opp.name, onShoot: i => this.shoot(i) });
+      Battle.open({ oppName: opp.name, onAction: a => this.act(a) });
+      this.seenEv = 0;
       $('#battle-opp .dot').className = 'dot on';
       const first = me.round % 2 === 1 ? 'host' : 'guest';
       toast(first === this.role ? 'İlk atış senin.' : `İlk atış ${opp.name} kaptanında.`);
@@ -2422,27 +2716,24 @@ const Online = {
     if (this.phase !== 'battle' && this.phase !== 'over') return;
 
     const R = this.replay();
+    const other = this.role === 'host' ? 'guest' : 'host';
     const targetK = newKnowledge(), incomingK = newKnowledge();
-    R.mine.forEach(x => applyResult(targetK, x.i, x.res));
-    R.theirs.forEach(x => applyResult(incomingK, x.i, x.res));
+    R.events.forEach(e => applyAction(e.by === this.role ? targetK : incomingK, e.a, e.ans));
     if (R.pending && R.turn === this.role) {
-      const lastShot = me.shots[me.shots.length - 1];
-      if (lastShot !== undefined) targetK.last = lastShot;
+      const last = me.shots[me.shots.length - 1];
+      if (typeof last === 'number') targetK.last = last;
     }
 
     // effects + log for anything new
-    for (let k = this.seenOut; k < R.mine.length; k++) {
-      const x = R.mine[k];
-      Battle.addLog('Sen', x.i, x.res, x.res.id && SHIP_BY_ID[x.res.id]?.name);
-      setTimeout(() => Battle.effect(Battle.target, x.i, x.res), 0);
-    }
-    for (let k = this.seenIn; k < R.theirs.length; k++) {
-      const x = R.theirs[k];
-      Battle.addLog(opp.name, x.i, x.res, x.res.id && SHIP_BY_ID[x.res.id]?.name);
-      setTimeout(() => Battle.effect(Battle.own, x.i, x.res), 0);
-    }
-    const turnChangedToMe = R.theirs.length > this.seenIn && R.turn === this.role && !R.winner;
-    this.seenOut = R.mine.length; this.seenIn = R.theirs.length;
+    const fresh = R.events.slice(this.seenEv || 0);
+    this.seenEv = R.events.length;
+    fresh.forEach(e => {
+      const mine = e.by === this.role;
+      setTimeout(() => Battle.showAction(mine ? Battle.target : Battle.own, mine ? 'Sen' : opp.name, e.a, e.ans), 0);
+      if (actKind(e.a) === 'bomb') toast(mine ? 'Bomba kullandın: rakibe 1 ıska hakkı verildi.' : `${opp.name} bomba kullandı: sana 1 ıska hakkı verildi.`, 3200);
+    });
+    if (fresh.length && R.T.bonusUsed) toast(R.T.bonusUsed === this.role ? 'Iska hakkını kullandın, sıra hâlâ sende.' : `${opp.name} ıska hakkını kullandı, sıra onda kalıyor.`);
+    const turnChangedToMe = fresh.some(e => e.by !== this.role) && R.turn === this.role && !R.winner;
     if (turnChangedToMe) setTimeout(() => Sound.play('ping'), 700);
 
     const over = !!R.winner;
@@ -2453,8 +2744,11 @@ const Online = {
     else turnText = `${opp.name} nişan alıyor…`;
     this.view = { myTurn };
     Battle.render({
-      myFleet: this.myFleet, targetK, incomingK, over, turnText, round: me.round,
+      myFleet: this.myFleet, targetK, incomingK, over, turnText, round: me.round, acts: R.events.length,
       turn: myTurn ? 'me' : 'them',
+      bonus: R.T.bonus[R.turn],
+      powers: RULES.powers ? { bomb: !!R.T.used[this.role].bomb, sonar: !!R.T.used[this.role].sonar } : null,
+      oppPowers: RULES.powers ? { bomb: !!R.T.used[other].bomb, sonar: !!R.T.used[other].sonar } : null,
       reveal: over && opp.fleet ? opp.fleet.filter(s => s && SHIP_BY_ID[s.id]) : null,
     });
     this.targetK = targetK;
@@ -2481,12 +2775,17 @@ const Online = {
       }, 1100);
     }
   },
-  shoot(i) {
-    if (this.phase !== 'battle' || !this.view || !this.view.myTurn) return;
-    if (!this.targetK || this.targetK.cell[i] !== 0 || this.me.shots.includes(i)) return;
-    this.me.shots.push(i);
+  act(a) {
+    if (this.phase !== 'battle' || !this.view || !this.view.myTurn || !this.targetK) return;
+    const k = actKind(a);
+    if (k === 'shot' && (this.targetK.cell[a] !== 0 || this.me.shots.includes(a))) return;
+    if (k !== 'shot') {
+      if (!RULES.powers) return;
+      if (this.me.shots.some(x => actKind(x) === k)) return;
+    }
+    this.me.shots.push(a);
     this.view.myTurn = false;
-    Sound.play('fire');
+    Sound.play(k === 'bomb' ? 'bomb' : k === 'sonar' ? 'click' : 'fire');
     this.publish();
     this.refresh();
   },
