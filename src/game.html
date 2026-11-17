@@ -15,7 +15,11 @@
   --sea-hi: #18496d;
   --grid: #24597c;       /* chart lines */
   --foam: #e9f2f3;       /* text */
-  --mist: #8fb0c1;       /* muted text */
+  --mist: #b3cbd7;       /* muted text */
+  --ocean-hi: #2c80b4;   /* sunlit water */
+  --ocean: #1a6596;      /* open sea */
+  --ocean-lo: #0e4670;   /* deep water */
+  --brass-hi: #f3c869;
   --brass: #d9a943;      /* accent */
   --brass-dim: #8a6a26;
   --flare: #ef4a35;      /* hit */
@@ -33,17 +37,55 @@
 html, body { height: 100%; }
 body {
   margin: 0;
-  background:
-    radial-gradient(120% 80% at 50% -10%, #133a5c 0%, transparent 60%),
-    repeating-linear-gradient(0deg, transparent 0 47px, rgba(60,120,160,.07) 47px 48px),
-    repeating-linear-gradient(90deg, transparent 0 47px, rgba(60,120,160,.07) 47px 48px),
-    var(--abyss);
-  background-attachment: fixed;
+  background: var(--ocean-lo);
   color: var(--foam);
   font: 15px/1.5 var(--f-body);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
+
+/* ---------- seascape (decorative background) ---------- */
+.seascape { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none;
+  background:
+    radial-gradient(70% 55% at 25% -5%, rgba(120, 200, 240, .35), transparent 70%),
+    radial-gradient(60% 50% at 100% 105%, rgba(6, 30, 55, .55), transparent 70%),
+    linear-gradient(180deg, var(--ocean-hi) 0%, var(--ocean) 42%, var(--ocean-lo) 100%);
+}
+.seascape .grid { position: absolute; inset: 0;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 79px, rgba(255,255,255,.035) 79px 80px),
+    repeating-linear-gradient(90deg, transparent 0 79px, rgba(255,255,255,.035) 79px 80px);
+}
+.seascape .waves { position: absolute; inset: -60px; opacity: .55; }
+.seascape .w1 {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='70'%3E%3Cpath d='M0 35 Q27.5 22 55 35 T110 35 T165 35 T220 35' fill='none' stroke='white' stroke-opacity='.09' stroke-width='2'/%3E%3C/svg%3E");
+  background-size: 220px 70px; animation: drift 38s linear infinite;
+}
+.seascape .w2 {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='120'%3E%3Cpath d='M0 60 Q45 44 90 60 T180 60 T270 60 T360 60' fill='none' stroke='white' stroke-opacity='.07' stroke-width='3'/%3E%3C/svg%3E");
+  background-size: 360px 120px; background-position: 90px 40px; animation: drift2 60s linear infinite;
+}
+@keyframes drift { to { transform: translate(220px, 70px); } }
+@keyframes drift2 { to { transform: translate(-360px, 120px); } }
+.seascape .glint { position: absolute; inset: 0; background:
+  radial-gradient(3px 3px at 12% 22%, rgba(255,255,255,.5), transparent),
+  radial-gradient(2px 2px at 64% 14%, rgba(255,255,255,.45), transparent),
+  radial-gradient(3px 3px at 82% 62%, rgba(255,255,255,.35), transparent),
+  radial-gradient(2px 2px at 34% 76%, rgba(255,255,255,.35), transparent),
+  radial-gradient(2px 2px at 52% 44%, rgba(255,255,255,.3), transparent);
+  animation: glint 7s ease-in-out infinite alternate; }
+@keyframes glint { from { opacity: .25; } to { opacity: .9; } }
+.bg-ship { position: absolute; left: 0; opacity: var(--o, .2); animation: sail var(--t, 120s) linear infinite; animation-delay: var(--d, 0s); will-change: transform; }
+.bg-ship.left { animation-name: sail-left; }
+.bg-ship .hull { position: relative; animation: bob 6s ease-in-out infinite; animation-delay: var(--d, 0s); }
+.bg-ship.left .hull { transform: scaleX(-1); }
+.bg-ship svg { display: block; width: 100%; height: 100%; filter: brightness(.8) saturate(.6) blur(.6px); }
+.bg-ship .wake { position: absolute; right: 88%; top: 8%; height: 84%; width: 160%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.28));
+  clip-path: polygon(0 0, 100% 42%, 100% 58%, 0 100%); filter: blur(2px); }
+@keyframes sail { from { transform: translateX(-30vw) rotate(var(--r, 0deg)); } to { transform: translateX(130vw) rotate(var(--r, 0deg)); } }
+@keyframes sail-left { from { transform: translateX(130vw) rotate(var(--r, 0deg)); } to { transform: translateX(-30vw) rotate(var(--r, 0deg)); } }
+@keyframes bob { 50% { translate: 0 3px; rotate: .6deg; } }
 button { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 
@@ -89,10 +131,10 @@ button { font: inherit; color: inherit; }
 /* ---------- screens ---------- */
 .screen { animation: rise .35s ease both; }
 @keyframes rise { from { opacity: .001; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--brass); }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--brass-hi); text-shadow: 0 1px 2px rgba(0,0,0,.35); }
 h1, h2, h3 { text-wrap: balance; margin: 0; }
 h2.title { font-family: var(--f-display); font-weight: 400; font-size: clamp(28px, 4vw, 38px); letter-spacing: .03em; line-height: 1.1; }
-.lead { color: var(--mist); max-width: 60ch; margin: 8px 0 0; }
+.lead { color: #e1eef3; text-shadow: 0 1px 2px rgba(0,0,0,.3); max-width: 60ch; margin: 8px 0 0; }
 .back { margin-bottom: 18px; }
 
 /* ---------- menu ---------- */
@@ -177,6 +219,8 @@ h2.title { font-family: var(--f-display); font-weight: 400; font-size: clamp(28p
   display: grid; grid-template-columns: 1.5em repeat(10, minmax(0, 1fr)); grid-template-rows: 1.5em;
   gap: 2px; user-select: none; -webkit-user-select: none; touch-action: manipulation;
   position: relative; isolation: isolate; -webkit-touch-callout: none;
+  background: rgba(6, 28, 48, .62); padding: 6px 6px 6px 2px; border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 20, 40, .25), inset 0 0 0 1px rgba(140, 200, 230, .12);
 }
 .board.no-scroll, .board.no-scroll * { touch-action: none; }
 .ships { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
@@ -191,11 +235,11 @@ h2.title { font-family: var(--f-display); font-weight: 400; font-size: clamp(28p
 .drag-ghost { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 80; pointer-events: none; }
 .drag-ghost .shipimg-in { left: auto; top: auto; filter: drop-shadow(0 10px 10px rgba(0,0,0,.55)); transition: transform .12s; }
 .drag-ghost.bad .shipimg-in svg { filter: sepia(1) hue-rotate(-40deg) saturate(4) brightness(.9); }
-.board .lab { font-family: var(--f-mono); font-size: 11px; color: var(--mist); display: grid; place-items: center; }
+.board .lab { font-family: var(--f-mono); font-size: 11px; color: #d6e7ee; display: grid; place-items: center; }
 .cell {
   position: relative; aspect-ratio: 1; padding: 0; border: 0; border-radius: 3px; cursor: default;
   background: var(--sea);
-  box-shadow: inset 0 0 0 1px rgba(80, 150, 190, .14);
+  box-shadow: inset 0 0 0 1px rgba(110, 180, 220, .18), 0 1px 0 rgba(0, 20, 40, .25);
   transition: background .15s;
 }
 .board.armed .cell.unk { cursor: crosshair; }
@@ -241,7 +285,7 @@ h2.title { font-family: var(--f-display); font-weight: 400; font-size: clamp(28p
 .tool-rotate svg { width: 20px; height: 20px; color: var(--brass); }
 .dir-ind { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--abyss); border: 1px solid var(--brass-dim); color: var(--brass); font-size: 15px; line-height: 1; }
 .place-tools .spacer { flex: 1; }
-.hint { margin: 0; font-size: 13px; color: var(--mist); max-width: 540px; display: flex; gap: 14px; flex-wrap: wrap; }
+.hint { margin: 0; font-size: 13px; color: #d6e7ee; max-width: 540px; display: flex; gap: 14px; flex-wrap: wrap; }
 .hint span { display: inline-flex; gap: 6px; align-items: center; }
 .hint b { color: var(--foam); font-weight: 600; }
 .dock { display: grid; gap: 14px; background: var(--deep); border: 1px solid var(--grid); border-radius: 14px; padding: 16px; }
@@ -281,7 +325,7 @@ h2.title { font-family: var(--f-display); font-weight: 400; font-size: clamp(28p
 .battle .target .board { --size: 560px; }
 .board-title { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 10px; margin-bottom: 10px; max-width: 560px; }
 .board-title h3 { white-space: nowrap; font-family: var(--f-display); font-weight: 400; font-size: 20px; letter-spacing: .04em; }
-.board-title span { font-family: var(--f-mono); font-size: 12px; color: var(--mist); }
+.board-title span { font-family: var(--f-mono); font-size: 12px; color: #d6e7ee; }
 .side { display: grid; gap: 18px; }
 .side .board { --size: 330px; gap: 1px; }
 .side .board .lab { font-size: 9px; }
@@ -324,7 +368,7 @@ h2.title { font-family: var(--f-display); font-weight: 400; font-size: clamp(28p
 /* ---------- responsive ---------- */
 @media (max-width: 900px) {
   .menu { grid-template-columns: 1fr; gap: 10px; min-height: 0; }
-  .radar { max-width: 300px; order: -1; }
+  .radar { max-width: 220px; order: -1; }
   .battle { grid-template-columns: 1fr; }
   .place-layout { grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 12px; }
   .place-main, .dock { display: contents; }
@@ -350,10 +394,15 @@ h2.title { font-family: var(--f-display); font-weight: 400; font-size: clamp(28p
   .icon-btn .lbl { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .bg-ship { animation: none !important; transform: translateX(var(--x, 20vw)) rotate(var(--r, 0deg)); }
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition: none !important; }
 }
 </style>
 
+<div class="seascape" aria-hidden="true">
+  <div class="grid"></div><div class="waves w1"></div><div class="waves w2"></div><div class="glint"></div>
+  <div id="bg-fleet"></div>
+</div>
 <div class="wrap">
   <header class="topbar">
     <button class="brand" id="brand" type="button" aria-label="Ana menü">
@@ -1011,6 +1060,27 @@ function shipFromCells(id, cells) {
   const [r0, c0] = rc(sorted[0]), [r1] = rc(sorted[sorted.length - 1]);
   return { id, len: sorted.length, r: r0, c: c0, dir: r0 === r1 ? 'e' : 's' };
 }
+
+/* ============================== background fleet ============================== */
+(function seedBackgroundFleet() {
+  const host = document.getElementById('bg-fleet');
+  if (!host) return;
+  const lanes = [
+    { id: 'carrier', y: 9, size: 54, t: 170, o: .13, left: false },
+    { id: 'destroyer', y: 23, size: 30, t: 95, o: .12, left: true },
+    { id: 'battleship', y: 38, size: 44, t: 140, o: .12, left: false },
+    { id: 'submarine', y: 55, size: 34, t: 125, o: .1, left: true },
+    { id: 'cruiser', y: 70, size: 40, t: 115, o: .12, left: false },
+    { id: 'destroyer', y: 86, size: 32, t: 100, o: .11, left: true },
+  ];
+  host.innerHTML = lanes.map((l, n) => {
+    const len = SHIP_BY_ID[l.id].len;
+    const delay = -Math.random() * l.t;
+    const tilt = (Math.random() * 4 - 2).toFixed(1);
+    return `<div class="bg-ship ${l.left ? 'left' : ''}" style="top:${l.y}%;width:${len * l.size}px;height:${l.size}px;--t:${l.t}s;--d:${delay.toFixed(1)}s;--o:${l.o};--r:${tilt}deg;--x:${(n * 17 + 5) % 90}vw">
+      <div class="hull" style="width:100%;height:100%"><div class="wake"></div>${shipSVG(l.id, len)}</div></div>`;
+  }).join('');
+})();
 
 /* ============================== board component ============================== */
 function createBoard(host, opts = {}) {
